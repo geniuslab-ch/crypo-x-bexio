@@ -32,6 +32,9 @@ export const KNOWN_TOKENS: Record<string, string> = {
   '0x6982508145454ce325ddbe47a25d4ec3d2311933': 'PEPE',
   '0xae7ab96520de3a18e5e111b5eaab095312d7fe84': 'STETH',
   '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0': 'MATIC',
+  // Swiss franc stablecoins
+  '0xb58e61c3098d85632df34eecfb899a1ed80921cb': 'ZCHF',
+  '0xb4272071ecadd69d933adcd19ca99fe80664fc08': 'XCHF',
 };
 
 interface EthTx { hash: string; timeStamp: string; from: string; to: string; value: string; gasPrice?: string; gasUsed?: string; isError?: string; blockNumber: string }

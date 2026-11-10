@@ -16,6 +16,8 @@ export const COINGECKO_IDS: Record<string, string> = {
   AVAX: 'avalanche-2', LINK: 'chainlink', ATOM: 'cosmos', XLM: 'stellar', TRX: 'tron', ALGO: 'algorand', XTZ: 'tezos',
   DAI: 'dai', UNI: 'uniswap', AAVE: 'aave', BCH: 'bitcoin-cash', ETC: 'ethereum-classic', XMR: 'monero', NEAR: 'near',
   ARB: 'arbitrum', OP: 'optimism', CHSB: 'swissborg', BORG: 'swissborg', CRO: 'crypto-com-chain', BEST: 'bitpanda-ecosystem-token',
+  ZCHF: 'frankencoin', VCHF: 'vnx-swiss-franc', WBTC: 'wrapped-bitcoin', WETH: 'weth', STETH: 'staked-ether', SHIB: 'shiba-inu', PEPE: 'pepe',
+  FDUSD: 'first-digital-usd', EURC: 'euro-coin',
 };
 
 export interface CoinGeckoQuote {

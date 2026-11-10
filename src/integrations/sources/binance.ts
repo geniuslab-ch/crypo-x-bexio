@@ -15,25 +15,34 @@ import { ConnectorError, type FetchContext, type SourceConnector, type SyncState
  * - GET /api/v3/myTrades (symbol required; fromId paging; limit ≤ 1000; fields price, qty, quoteQty,
  *   commission, commissionAsset, time, isBuyer)
  * - GET /api/v3/account (balances) and public GET /api/v3/exchangeInfo (symbol list)
+ * - GET /sapi/v1/simple-earn/flexible/history/rewardsRecord (rows: asset, rewards, projectId, type, time; window ≤ 30 days;
+ *   size ≤ 100; weight 150) and GET /sapi/v1/simple-earn/locked/history/rewardsRecord (rows: positionId, time, asset,
+ *   lockPeriod, amount, type) — staking/earn income (ETH, SOL, ADA, DOT… locked products are Binance's staking).
  * SIGNED requests: query string + timestamp, signature = hex HMAC-SHA256(secret, query), header X-MBX-APIKEY.
  *
  * Coverage limit: Binance has no endpoint listing the pairs a user traded. We query every listed pair
  * whose base asset the user holds or moved in/out, quoted in one of those assets or a major quote asset,
- * plus any extra pairs the user names. Convert, Earn, dust and card purchases are not covered yet.
+ * plus any extra pairs the user names. Convert, dust, card purchases and ETH staking via WBETH (value accrues in
+ * the token, no reward rows) are not covered yet.
  */
 const BASE = 'https://api.binance.com';
 const DAY = 86_400_000;
 const WINDOW = 89 * DAY;
 const START = Date.UTC(2017, 6, 1);
+/** Simple Earn replaced the older savings/staking products in 2023. */
+const EARN_START = Date.UTC(2023, 0, 1);
+const EARN_WINDOW = 30 * DAY - 1;
 const QUOTES = ['USDT', 'USDC', 'FDUSD', 'BUSD', 'BTC', 'ETH', 'BNB', 'EUR', 'CHF', 'GBP', 'TRY', 'DAI'];
 
 interface Deposit { id?: string; amount: string; coin: string; status: number; txId?: string; insertTime: number; network?: string; transferType?: number }
 interface Withdrawal { id: string; amount: string; transactionFee: string; coin: string; status: number; txId?: string; applyTime: string; completeTime?: string; network?: string; transferType?: number }
 interface Trade { symbol: string; id: number; orderId: number; price: string; qty: string; quoteQty: string; commission: string; commissionAsset: string; time: number; isBuyer: boolean }
 interface SymbolInfo { symbol: string; baseAsset: string; quoteAsset: string }
+interface FlexReward { asset: string; rewards: string; projectId?: string; type?: string; time: number }
+interface LockedReward { positionId?: number | string; time: number; asset: string; lockPeriod?: string; amount: string; type?: string }
 
 interface BinanceState extends SyncState {
-  phase?: 'transfers' | 'symbols' | 'trades';
+  phase?: 'transfers' | 'symbols' | 'trades' | 'rewards';
   /** Next window start for deposit/withdrawal history (epoch ms). */
   transfersFrom?: number;
   deposits?: Deposit[];
@@ -44,6 +53,13 @@ interface BinanceState extends SyncState {
   trades?: Trade[];
   /** Trades already fetched in earlier passes: next pass starts after these ids. */
   lastTradeId?: Record<string, number>;
+  rewardsFrom?: number;
+  rewardKind?: 'flexible' | 'locked';
+  rewardPage?: number;
+  flexRewards?: FlexReward[];
+  lockedRewards?: LockedReward[];
+  /** Earn rewards window start for the next pass. */
+  nextRewardsFrom?: number;
   /** Transfers window start for the next pass. */
   nextPassFrom?: number;
 }
@@ -61,7 +77,7 @@ async function signed<T>(fx: FetchContext, creds: Record<string, string>, path: 
 
 const fmt = (v: string | number) => new D(v).toString();
 
-export function mapBinance(input: { deposits: Deposit[]; withdrawals: Withdrawal[]; trades: Trade[]; symbols: SymbolInfo[] }): { transactions: ParsedTransaction[]; issues: ParseIssue[] } {
+export function mapBinance(input: { deposits: Deposit[]; withdrawals: Withdrawal[]; trades: Trade[]; symbols: SymbolInfo[]; flexRewards?: FlexReward[]; lockedRewards?: LockedReward[] }): { transactions: ParsedTransaction[]; issues: ParseIssue[] } {
   const transactions: ParsedTransaction[] = [];
   const issues: ParseIssue[] = [];
   const bySymbol = new Map(input.symbols.map((s) => [s.symbol, s]));
@@ -100,6 +116,22 @@ export function mapBinance(input: { deposits: Deposit[]; withdrawals: Withdrawal
       raw: [stringify(t)], rowNumbers: [i + 1], note: `${t.symbol} @ ${t.price}`,
     });
   });
+  (input.flexRewards ?? []).forEach((r, i) => {
+    if (!new D(r.rewards || 0).gt(0)) return;
+    transactions.push({
+      externalId: `earn-flexible:${r.asset}:${r.projectId ?? ''}:${r.type ?? ''}:${r.time}`, occurredAt: new Date(r.time), rawType: `simple_earn_flexible:${(r.type ?? '').toLowerCase()}`,
+      movements: [{ direction: 'in', asset: normalizeAsset(r.asset), quantity: fmt(r.rewards) }], raw: [stringify(r)], rowNumbers: [i + 1],
+      hint: { classification: 'staking_reward', confidence: 0.85, reason: `Récompense Binance Simple Earn flexible (${r.type ?? 'n/a'})` },
+    });
+  });
+  (input.lockedRewards ?? []).forEach((r, i) => {
+    if (!new D(r.amount || 0).gt(0)) return;
+    transactions.push({
+      externalId: `earn-locked:${r.positionId ?? ''}:${r.asset}:${r.time}`, occurredAt: new Date(r.time), rawType: 'simple_earn_locked',
+      movements: [{ direction: 'in', asset: normalizeAsset(r.asset), quantity: fmt(r.amount) }], raw: [stringify(r)], rowNumbers: [i + 1],
+      hint: { classification: 'staking_reward', confidence: 0.9, reason: `Récompense Binance Simple Earn bloqué${r.lockPeriod ? ` (${r.lockPeriod} j)` : ''}` },
+    });
+  });
   transactions.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
   return { transactions, issues };
 }
@@ -121,7 +153,7 @@ export const binanceApiConnector: SourceConnector = {
     { name: 'extraSymbols', label: 'Paires supplémentaires (optionnel, ex. SOLUSDT, ADAEUR)', secret: false, optional: true },
   ],
   help: 'Binance → Profil → Gestion des API → Créer une clé (générée par le système). Laissez uniquement « Enable Reading » coché. Nous refusons toute clé qui permet le trading, les transferts ou les retraits.',
-  limits: 'Couvre dépôts, retraits et trades spot. Pas encore : Convert, Earn, conversion de poussière, achats par carte. Binance ne liste pas les paires tradées : nous interrogeons les paires de vos actifs ; ajoutez une paire manquante dans le champ prévu.',
+  limits: 'Couvre dépôts, retraits, trades spot et récompenses Simple Earn (staking). Pas encore : Convert, conversion de poussière, achats par carte, staking ETH via WBETH. Binance ne liste pas les paires tradées : nous interrogeons les paires de vos actifs ; ajoutez une paire manquante dans le champ prévu.',
   async verify(creds, fx) {
     if (!creds.apiKey || !creds.apiSecret) throw new ConnectorError('credentials_missing');
     const r = await signed<Record<string, boolean>>(fx, creds, '/sapi/v1/account/apiRestrictions');
@@ -137,12 +169,14 @@ export const binanceApiConnector: SourceConnector = {
     const st: BinanceState = { phase: 'transfers', deposits: [], withdrawals: [], trades: [], lastTradeId: {}, ...(raw as BinanceState) };
     st.transfersFrom ??= st.nextPassFrom ?? START;
     const passStart = st.nextPassFrom ?? START;
+    // Fixed upper bound for this run: the clock moves while we read, which must not create endless tiny windows.
+    const until = fx.now();
     const partial = (msg: string) => ({ transactions: [], issues: [], evidence: null, complete: false, state: st, progress: msg });
 
     if (st.phase === 'transfers') {
-      while (st.transfersFrom < fx.now()) {
+      while (st.transfersFrom < until) {
         if (outOfTime(fx)) return partial(`Binance : historique des dépôts/retraits lu jusqu’au ${new Date(st.transfersFrom).toISOString().slice(0, 10)} — relancez pour continuer.`);
-        const end = Math.min(st.transfersFrom + WINDOW, fx.now());
+        const end = Math.min(st.transfersFrom + WINDOW, until);
         const [dep, wd] = await Promise.all([
           signed<Deposit[]>(fx, creds, '/sapi/v1/capital/deposit/hisrec', { startTime: st.transfersFrom, endTime: end, limit: 1000 }),
           signed<Withdrawal[]>(fx, creds, '/sapi/v1/capital/withdraw/history', { startTime: st.transfersFrom, endTime: end, limit: 1000 }),
@@ -191,14 +225,40 @@ export const binanceApiConnector: SourceConnector = {
       }
     }
 
-    const mapped = mapBinance({ deposits: st.deposits!, withdrawals: st.withdrawals!, trades: st.trades!, symbols });
+    st.phase = 'rewards';
+    st.flexRewards ??= [];
+    st.lockedRewards ??= [];
+    st.rewardsFrom ??= st.nextRewardsFrom ?? EARN_START;
+    st.rewardKind ??= 'flexible';
+    st.rewardPage ??= 1;
+    while (st.rewardKind) {
+      if (st.rewardsFrom >= until) {
+        st.rewardKind = st.rewardKind === 'flexible' ? 'locked' : undefined;
+        st.rewardsFrom = st.nextRewardsFrom ?? EARN_START;
+        st.rewardPage = 1;
+        continue;
+      }
+      if (outOfTime(fx)) return partial(`Binance Earn : récompenses lues jusqu’au ${new Date(st.rewardsFrom).toISOString().slice(0, 10)} — relancez pour continuer.`);
+      const end = Math.min(st.rewardsFrom + EARN_WINDOW, until);
+      const path = `/sapi/v1/simple-earn/${st.rewardKind}/history/rewardsRecord`;
+      const page = await signed<{ rows?: (FlexReward & LockedReward)[]; total?: number }>(fx, creds, path, {
+        startTime: st.rewardsFrom, endTime: end, current: st.rewardPage, size: 100,
+      });
+      const rows = page.rows ?? [];
+      if (st.rewardKind === 'flexible') st.flexRewards.push(...rows); else st.lockedRewards.push(...rows);
+      if (rows.length === 100) st.rewardPage += 1;
+      else { st.rewardsFrom = end + 1; st.rewardPage = 1; }
+      await fx.sleep(1_600); // weight 150 per call against 6000 per minute
+    }
+
+    const mapped = mapBinance({ deposits: st.deposits!, withdrawals: st.withdrawals!, trades: st.trades!, symbols, flexRewards: st.flexRewards, lockedRewards: st.lockedRewards });
     for (const t of st.trades!) st.lastTradeId![t.symbol] = Math.max(st.lastTradeId![t.symbol] ?? -1, t.id);
-    const evidence = { passFrom: passStart, deposits: st.deposits, withdrawals: st.withdrawals, trades: st.trades };
+    const evidence = { passFrom: passStart, deposits: st.deposits, withdrawals: st.withdrawals, trades: st.trades, flexRewards: st.flexRewards, lockedRewards: st.lockedRewards };
     return {
       ...mapped, evidence, complete: true,
       // Next pass re-reads the last 7 days of transfers (dedup by id) and only newer trades.
-      state: { lastTradeId: st.lastTradeId, nextPassFrom: Math.max(START, fx.now() - 7 * DAY) },
-      progress: `Binance : ${st.deposits!.length} dépôts, ${st.withdrawals!.length} retraits, ${st.trades!.length} trades sur ${symbols.length} paires.`,
+      state: { lastTradeId: st.lastTradeId, nextPassFrom: Math.max(START, fx.now() - 7 * DAY), nextRewardsFrom: Math.max(EARN_START, fx.now() - 7 * DAY) },
+      progress: `Binance : ${st.deposits!.length} dépôts, ${st.withdrawals!.length} retraits, ${st.trades!.length} trades sur ${symbols.length} paires, ${st.flexRewards.length + st.lockedRewards.length} récompenses Earn.`,
     };
   },
 };

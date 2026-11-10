@@ -6,7 +6,9 @@ export const FIAT_CURRENCIES: ReadonlySet<string> = new Set([
 
 /** Common USD/EUR/CHF-pegged stablecoins. Treated as crypto assets with their own lots (see FEASIBILITY D8). */
 export const STABLECOINS: ReadonlySet<string> = new Set([
-  'USDT', 'USDC', 'DAI', 'BUSD', 'TUSD', 'USDP', 'PYUSD', 'FDUSD', 'EURC', 'EURT', 'XCHF', 'USDE',
+  'USDT', 'USDC', 'DAI', 'BUSD', 'TUSD', 'USDP', 'PYUSD', 'FDUSD', 'EURC', 'EURT', 'USDE',
+  // Swiss franc stablecoins: CryptoFranc (Bitcoin Suisse), Frankencoin, VNX Swiss Franc.
+  'XCHF', 'ZCHF', 'VCHF',
 ]);
 
 export function isFiat(asset: string): boolean {

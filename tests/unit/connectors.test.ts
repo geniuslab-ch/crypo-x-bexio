@@ -133,6 +133,51 @@ describe('Binance API', () => {
   });
 });
 
+describe('Binance Earn rewards', () => {
+  it('books flexible and locked Simple Earn rewards as staking income', () => {
+    const r = mapBinance({
+      symbols: [], deposits: [], withdrawals: [], trades: [],
+      flexRewards: [{ asset: 'USDC', rewards: '0.0123', projectId: 'USDC001', type: 'REALTIME', time: Date.UTC(2024, 5, 1) }],
+      lockedRewards: [
+        { positionId: 42, time: Date.UTC(2024, 5, 2), asset: 'DOT', lockPeriod: '30', amount: '0.5', type: 'Locked Rewards' },
+        { positionId: 42, time: Date.UTC(2024, 5, 3), asset: 'DOT', lockPeriod: '30', amount: '0', type: 'Locked Rewards' },
+      ],
+    });
+    expect(r.transactions.map((t) => [t.movements, t.hint?.classification])).toEqual([
+      [[{ direction: 'in', asset: 'USDC', quantity: '0.0123' }], 'staking_reward'],
+      [[{ direction: 'in', asset: 'DOT', quantity: '0.5' }], 'staking_reward'],
+    ]);
+  });
+
+  it('reads transfers, trades and both reward histories in one complete pass', async () => {
+    const paths: string[] = [];
+    const clock = { t: Date.UTC(2023, 2, 1) };
+    const fx = fakeFx((url) => {
+      const u = new URL(url);
+      paths.push(u.pathname);
+      switch (u.pathname) {
+        case '/sapi/v1/account/apiRestrictions': return { enableReading: true };
+        case '/sapi/v1/capital/deposit/hisrec': return [];
+        case '/sapi/v1/capital/withdraw/history': return [];
+        case '/api/v3/account': return { balances: [{ asset: 'SOL', free: '1', locked: '0' }] };
+        case '/api/v3/exchangeInfo': return { symbols: [{ symbol: 'SOLUSDT', baseAsset: 'SOL', quoteAsset: 'USDT' }] };
+        case '/api/v3/myTrades': return [];
+        case '/sapi/v1/simple-earn/flexible/history/rewardsRecord': return { rows: [], total: 0 };
+        case '/sapi/v1/simple-earn/locked/history/rewardsRecord':
+          return Number(u.searchParams.get('startTime')) === Date.UTC(2023, 0, 1)
+            ? { rows: [{ positionId: 1, time: Date.UTC(2023, 0, 5), asset: 'SOL', lockPeriod: '60', amount: '0.01' }], total: 1 } : { rows: [], total: 0 };
+        default: throw new Error(`unexpected ${u.pathname}`);
+      }
+    }, { clock });
+    const r = await binanceApiConnector.sync({ apiKey: 'k', apiSecret: 's' }, {}, fx);
+    expect(r.complete).toBe(true);
+    expect(paths).toContain('/api/v3/myTrades');
+    expect(r.transactions).toHaveLength(1);
+    expect(r.transactions[0]!.movements).toEqual([{ direction: 'in', asset: 'SOL', quantity: '0.01' }]);
+    expect(r.state.nextRewardsFrom).toBeGreaterThan(Date.UTC(2023, 0, 1));
+  });
+});
+
 describe('Coinbase API', () => {
   it('pairs the two legs of an advanced trade fill and leaves a lone leg for review', () => {
     const fill = { order_id: 'o1', product_id: 'BTC-CHF', fill_price: '40000', commission: '2', order_side: 'BUY' };
