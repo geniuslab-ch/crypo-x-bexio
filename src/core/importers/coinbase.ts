@@ -96,10 +96,10 @@ export const coinbaseImporter: Importer = {
         movements.push({ direction: 'in', asset, quantity: qty.toString() });
       } else {
         movements.push({ direction: 'in', asset, quantity: qty.toString() });
-        hint = { classification: 'unknown', confidence: 0.2, reason: `Coinbase type "${type}" not recognised; direction unknown` };
+        hint = { classification: 'unknown', confidence: 0.2, reason: `Type Coinbase « ${type} » non reconnu ; sens inconnu` };
       }
       const th = TYPE_HINTS[t];
-      if (!hint && th) hint = { classification: th.c, confidence: th.conf, reason: `Coinbase type "${type}"` };
+      if (!hint && th) hint = { classification: th.c, confidence: th.conf, reason: `Type Coinbase « ${type} »` };
       transactions.push({
         externalId: col(row, 'ID') || null,
         occurredAt,

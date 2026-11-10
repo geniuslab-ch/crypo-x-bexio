@@ -127,14 +127,14 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
 
   for (const tx of txs) {
     if (!BOOKABLE_CLASSIFICATIONS.has(tx.classification)) {
-      issues.push({ txId: tx.id, code: 'not_bookable', message: `"${tx.classification}" transactions are not booked automatically in Phase 1` });
+      issues.push({ txId: tx.id, code: 'not_bookable', message: `Les transactions « ${tx.classification} » ne sont pas comptabilisées automatiquement en phase 1` });
       continue;
     }
     const isTransfer = tx.classification === 'internal_transfer';
     const needed = tx.movements.filter((m) => !(isTransfer && m.direction !== 'fee'));
     const unvalued = needed.filter((m) => m.chfValue === null);
     if (unvalued.length > 0) {
-      issues.push({ txId: tx.id, code: 'missing_rate', message: `No documented CHF rate for ${[...new Set(unvalued.map((m) => m.asset))].join(', ')}` });
+      issues.push({ txId: tx.id, code: 'missing_rate', message: `Aucun cours CHF documenté pour ${[...new Set(unvalued.map((m) => m.asset))].join(', ')}` });
       continue;
     }
 
@@ -183,7 +183,7 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
 
     for (const { m, kind, proceeds } of disposeLegs) {
       if (blockedAssets.has(m.asset)) {
-        issues.push({ txId: tx.id, code: 'insufficient_lots', message: `${m.asset}: earlier history is incomplete, results for this asset are blocked` });
+        issues.push({ txId: tx.id, code: 'insufficient_lots', message: `${m.asset} : historique antérieur incomplet, résultats bloqués pour cet actif` });
         txBlocked = true;
         continue;
       }
@@ -194,7 +194,7 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
         issues.push({
           txId: tx.id,
           code: 'insufficient_lots',
-          message: `${m.asset}: disposing ${qty.toString()} but only ${available.toString()} acquired before this date. An earlier purchase or transfer is probably missing from the imports.`,
+          message: `${m.asset} : cession de ${qty.toString()} alors que seuls ${available.toString()} ont été acquis avant cette date. Un achat ou un transfert antérieur manque probablement dans les imports.`,
         });
         blockedAssets.add(m.asset);
         txBlocked = true;

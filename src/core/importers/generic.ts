@@ -77,7 +77,7 @@ export const genericImporter: Importer = {
       let hint: ParsedTransaction['hint'] = null;
       if (typeRaw) {
         if ((CLASSIFICATIONS as readonly string[]).includes(typeRaw)) {
-          hint = { classification: typeRaw as Classification, confidence: 0.9, reason: 'Type stated in the import file' };
+          hint = { classification: typeRaw as Classification, confidence: 0.9, reason: 'Type indiqué dans le fichier importé' };
         } else rowIssues.push(`unknown type "${typeRaw}"`);
       }
       const chfValueRaw = col(row, 'chf_value');

@@ -82,7 +82,7 @@ describe('kraken ledger importer', () => {
       { direction: 'out', asset: 'BTC', quantity: '0.02' },
       { direction: 'fee', asset: 'BTC', quantity: '0.00005' },
     ]);
-    expect(r.issues.some((i) => i.message.includes('without txid'))).toBe(true);
+    expect(r.issues.some((i) => i.message.includes('sans txid'))).toBe(true);
   });
   it('is not detected as generic', () => {
     expect(detectImporter(fixture('kraken_ledgers.csv'))?.id).toBe('kraken_ledger_v1');

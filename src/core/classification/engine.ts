@@ -68,35 +68,35 @@ export function structuralClassification(tx: ClassifiableTx): { c: Classificatio
   const fiatOut = outs.filter((m) => isFiat(m.asset));
 
   if (ins.length === 0 && outs.length === 0) {
-    if (fees.length > 0) return { c: 'trading_fee', conf: 0.7, reason: 'Only a fee movement' };
-    return { c: 'internal_transfer', conf: 0.9, reason: 'Movements cancel out within the same source' };
+    if (fees.length > 0) return { c: 'trading_fee', conf: 0.7, reason: 'Uniquement un mouvement de frais' };
+    return { c: 'internal_transfer', conf: 0.9, reason: 'Les mouvements s’annulent au sein de la même source' };
   }
   if (ins.length === 1 && outs.length === 1) {
     const i = ins[0]!;
     const o = outs[0]!;
-    if (i.asset === o.asset) return { c: 'internal_transfer', conf: 0.85, reason: 'Same asset in and out' };
-    if (!isFiat(i.asset) && isFiat(o.asset)) return { c: 'buy', conf: 0.95, reason: `Received ${i.asset} against ${o.asset}` };
-    if (isFiat(i.asset) && !isFiat(o.asset)) return { c: 'sell', conf: 0.95, reason: `Sold ${o.asset} for ${i.asset}` };
-    if (!isFiat(i.asset) && !isFiat(o.asset)) return { c: 'swap', conf: 0.9, reason: `Exchanged ${o.asset} for ${i.asset}` };
-    return { c: 'unknown', conf: 0.3, reason: 'Fiat-to-fiat conversion is not handled in Phase 1' };
+    if (i.asset === o.asset) return { c: 'internal_transfer', conf: 0.85, reason: 'Même actif en entrée et en sortie' };
+    if (!isFiat(i.asset) && isFiat(o.asset)) return { c: 'buy', conf: 0.95, reason: `${i.asset} reçu contre ${o.asset}` };
+    if (isFiat(i.asset) && !isFiat(o.asset)) return { c: 'sell', conf: 0.95, reason: `${o.asset} vendu contre ${i.asset}` };
+    if (!isFiat(i.asset) && !isFiat(o.asset)) return { c: 'swap', conf: 0.9, reason: `${o.asset} échangé contre ${i.asset}` };
+    return { c: 'unknown', conf: 0.3, reason: 'Conversion fiat-fiat non traitée en phase 1' };
   }
   if (ins.length === 1 && outs.length === 0) {
-    if (fiatIn.length === 1) return { c: 'fiat_deposit', conf: 0.9, reason: `${fiatIn[0]!.asset} deposited` };
+    if (fiatIn.length === 1) return { c: 'fiat_deposit', conf: 0.9, reason: `Dépôt de ${fiatIn[0]!.asset}` };
     return {
       c: 'deposit',
       conf: 0.5,
-      reason: `${cryptoIn[0]!.asset} received from outside this source: own wallet, purchase elsewhere or income? Please confirm`,
+      reason: `${cryptoIn[0]!.asset} reçu de l’extérieur de cette source : votre propre wallet, un achat ailleurs ou un revenu ? Merci de confirmer`,
     };
   }
   if (outs.length === 1 && ins.length === 0) {
-    if (fiatOut.length === 1) return { c: 'fiat_withdrawal', conf: 0.9, reason: `${fiatOut[0]!.asset} withdrawn` };
+    if (fiatOut.length === 1) return { c: 'fiat_withdrawal', conf: 0.9, reason: `Retrait de ${fiatOut[0]!.asset}` };
     return {
       c: 'withdrawal',
       conf: 0.5,
-      reason: `${cryptoOut[0]!.asset} sent outside this source: own wallet, payment or sale? Please confirm`,
+      reason: `${cryptoOut[0]!.asset} envoyé hors de cette source : vers votre propre wallet, un paiement ou une vente ? Merci de confirmer`,
     };
   }
-  return { c: 'unknown', conf: 0.2, reason: 'More than one asset in or out: not handled automatically' };
+  return { c: 'unknown', conf: 0.2, reason: 'Plusieurs actifs en entrée ou en sortie : non traité automatiquement' };
 }
 
 function ruleMatches(rule: UserRule, tx: ClassifiableTx): boolean {
@@ -120,7 +120,7 @@ export function classifyTransactions(
   for (const tx of txs) {
     if (tx.manual) {
       results.set(tx.id, {
-        id: tx.id, classification: tx.manual, confidence: 1, origin: 'user', reasons: ['Set manually'], needsReview: false,
+        id: tx.id, classification: tx.manual, confidence: 1, origin: 'user', reasons: ['Classée manuellement'], needsReview: false,
       });
       continue;
     }
@@ -128,7 +128,7 @@ export function classifyTransactions(
     if (rule) {
       results.set(tx.id, {
         id: tx.id, classification: rule.classification, confidence: 1, origin: 'user_rule',
-        reasons: [`Your rule: ${tx.provider} "${rule.rawType}" → ${rule.classification}`], needsReview: false,
+        reasons: [`Votre règle : ${tx.provider} « ${rule.rawType} » → ${rule.classification}`], needsReview: false,
       });
       continue;
     }
@@ -194,8 +194,8 @@ function matchOwnTransfers(
     const group = `tg_${c.w.id}`;
     const conf = c.byHash ? 0.99 : 0.9;
     const reason = c.byHash
-      ? 'Matched to a deposit with the same blockchain transaction hash at another of your sources'
-      : `Matched to a deposit of the same asset at another of your sources within ${options.transferWindowHours}h`;
+      ? 'Apparié à un dépôt portant le même hash de transaction sur une autre de vos sources'
+      : `Apparié à un dépôt du même actif sur une autre de vos sources dans les ${options.transferWindowHours} h`;
     const asset = c.w.movements.find((m) => m.direction === 'out')!.asset;
     results.set(c.w.id, {
       id: c.w.id, classification: 'internal_transfer', confidence: conf, origin: 'transfer_match', reasons: [reason],

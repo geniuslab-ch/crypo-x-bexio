@@ -75,7 +75,7 @@ export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status:
   const engineInput: AccountingTx[] = [];
   for (const l of loaded) {
     if (l.tx.reviewStatus === 'needs_review' && !l.tx.manualClassification) {
-      issues.push({ txId: l.tx.id, code: 'needs_review', message: 'Classification must be confirmed', occurredAt: l.tx.occurredAt.toISOString() });
+      issues.push({ txId: l.tx.id, code: 'needs_review', message: 'La classification doit être confirmée', occurredAt: l.tx.occurredAt.toISOString() });
       continue;
     }
     engineInput.push({ id: l.tx.id, occurredAt: l.tx.occurredAt, classification: effectiveClassification(l.tx), movements: l.movements.map(toValuedMovement) });
@@ -123,7 +123,7 @@ export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status:
           continue;
         }
         if (prev && prev.status !== 'draft') {
-          issues.push({ txId: r.txId, code: 'not_bookable', message: `New result differs from validated entry ${prev.referenceNr}. Book an explicit correction; validated entries are never changed automatically.` });
+          issues.push({ txId: r.txId, code: 'not_bookable', message: `Le nouveau résultat diffère de l’écriture validée ${prev.referenceNr}. Passez une correction explicite : une écriture validée n’est jamais modifiée automatiquement.` });
           continue;
         }
         if (prev) {
@@ -140,7 +140,7 @@ export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status:
           await db.update(journalEntries).set({ status: 'superseded' }).where(eq(journalEntries.id, e.id));
           superseded++;
         } else {
-          issues.push({ txId: e.transactionId, code: 'not_bookable', message: `Validated entry ${e.referenceNr} no longer matches the calculation. Book an explicit reversal.` });
+          issues.push({ txId: e.transactionId, code: 'not_bookable', message: `L’écriture validée ${e.referenceNr} ne correspond plus au calcul. Passez une extourne explicite.` });
         }
       }
       if (issues.length > 0) await db.update(calculationRuns).set({ issues }).where(eq(calculationRuns.id, runId));

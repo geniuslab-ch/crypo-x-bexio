@@ -35,7 +35,7 @@ export const krakenLedgerImporter: Importer = {
       const line = table.lineNumbers[i] ?? i + 2;
       if (!col(row, 'txid')) {
         // Kraken lists pending entries without a txid; the settled entry appears separately.
-        issues.push({ rowNumber: line, message: 'Skipped: entry without txid (pending/unsettled in Kraken export)' });
+        issues.push({ rowNumber: line, message: 'Ignorée : ligne sans txid (opération en attente dans l’export Kraken)' });
         return;
       }
       const refid = col(row, 'refid') || col(row, 'txid');
@@ -100,17 +100,17 @@ function krakenHint(types: string[], subtypes: string[], movements: Movement[]):
   if (principal.length === 0) {
     // Legs cancel out after normalising staked/earn asset codes: movement between Kraken sub-accounts.
     if (movements.length === 0 || ['transfer', 'earn', 'staking'].some((t) => types.includes(t))) {
-      return { classification: 'internal_transfer', confidence: 0.95, reason: 'Kraken internal move between spot and staking/earn balances' };
+      return { classification: 'internal_transfer', confidence: 0.95, reason: 'Mouvement interne Kraken entre soldes spot et staking/earn' };
     }
   }
   if ((only === 'staking' || (only === 'earn' && subtypes.includes('reward'))) && principal.every((m) => m.direction === 'in')) {
-    return { classification: 'staking_reward', confidence: 0.95, reason: 'Kraken ledger type staking/earn reward' };
+    return { classification: 'staking_reward', confidence: 0.95, reason: 'Ligne Kraken de type récompense staking/earn' };
   }
   if (only === 'transfer' && principal.length === 1 && principal[0]?.direction === 'in' && subtypes.length === 0) {
-    return { classification: 'airdrop', confidence: 0.5, reason: 'Kraken "transfer" credit without subtype is used for airdrops/forks; please confirm' };
+    return { classification: 'airdrop', confidence: 0.5, reason: 'Crédit Kraken « transfer » sans sous-type : utilisé pour les airdrops/forks, merci de confirmer' };
   }
   if (only && ['margin', 'rollover', 'settled', 'adjustment', 'credit', 'dividend', 'sale', 'nfttrade', 'invite bonus'].includes(only)) {
-    return { classification: 'unknown', confidence: 0.3, reason: `Kraken ledger type "${only}" is not handled automatically in Phase 1` };
+    return { classification: 'unknown', confidence: 0.3, reason: `Type Kraken « ${only} » non traité automatiquement en phase 1` };
   }
   return null; // trade / spend / receive / deposit / withdrawal: structure decides
 }
