@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { and, count, eq, inArray } from 'drizzle-orm';
 import { logoutAction, switchOrgAction } from '@/app/actions';
+import { ClientSwitcher } from '@/components/ClientSwitcher';
 import { NavLinks } from '@/components/NavLinks';
 import { getI18n } from '@/i18n/server';
 import { requireCtx } from '@/server/auth/next';
@@ -37,20 +38,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </Link>
         <NavLinks items={items} />
         <div className="sidebar-foot">
-          {session.orgs.length > 1 ? (
-            <form action={switchOrgAction} className="org-switch">
-              <select name="orgId" defaultValue={session.orgId ?? ''} aria-label="Dossier">
-                {session.orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-              </select>
-              <button className="btn" style={{ marginTop: 6, width: '100%' }} type="submit">↺</button>
-            </form>
-          ) : <div style={{ color: '#fff', fontWeight: 600 }}>{session.orgName}</div>}
           <div>{session.email}</div>
           <form action={logoutAction}><button className="btn" type="submit" style={{ width: '100%' }}>{t('nav.logout')}</button></form>
           <div className="swiss-line"><span className="swiss-flag" aria-hidden /> Made for Swiss accounting</div>
         </div>
       </aside>
-      <main className="main">{children}</main>
+      <main className="main">
+        <div className="topbar">
+          <ClientSwitcher
+            orgs={session.orgs.map((o) => ({ id: o.id, name: o.name }))}
+            activeId={session.orgId ?? null}
+            action={switchOrgAction}
+            labels={{ client: t('client.label'), search: t('client.search'), none: t('client.none'), add: t('client.add') }}
+          />
+        </div>
+        {children}
+      </main>
     </div>
   );
 }

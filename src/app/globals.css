@@ -34,6 +34,30 @@ h3 { font-size: 14px; margin: 0 0 8px; }
 p { margin: 0 0 8px; }
 code { background: #f1efe9; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
 
+/* ---------- Client switcher ---------- */
+.topbar { display: flex; justify-content: flex-end; margin: -8px 0 16px; }
+.client-switch { position: relative; }
+.client-switch-btn {
+  display: flex; align-items: center; gap: 8px; min-width: 240px; max-width: 360px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 7px 12px;
+  font: inherit; cursor: pointer; box-shadow: var(--shadow); text-align: left;
+}
+.client-switch-btn:hover { border-color: var(--gold); }
+.client-switch-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.client-switch-name { flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.client-switch-caret { color: var(--gold); }
+.client-switch-pop {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 50; width: 320px; max-width: calc(100vw - 32px);
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgb(0 0 0 / 0.12); padding: 8px;
+}
+.client-switch-pop input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.client-switch-pop ul { list-style: none; margin: 6px 0; padding: 0; max-height: 300px; overflow-y: auto; }
+.client-switch-pop li { padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.client-switch-pop li.hi { background: var(--gold-soft); }
+.client-switch-pop li.current { font-weight: 600; }
+.client-switch-add { display: block; padding: 8px 10px; border-top: 1px solid var(--line); color: var(--warn); text-decoration: none; font-weight: 600; }
+@media (max-width: 520px) { .topbar { justify-content: stretch; } .client-switch, .client-switch-btn { width: 100%; max-width: none; } }
+
 /* ---------- Shell ---------- */
 .shell { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
 .sidebar {

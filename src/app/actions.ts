@@ -95,7 +95,12 @@ export async function logoutAction() {
 export async function switchOrgAction(form: FormData) {
   const { session } = await requireCtx();
   await switchOrg(getDb(), session.sessionId, session.userId, String(form.get('orgId')));
-  redirect('/dashboard');
+  // Stay on the same section after switching client; detail pages (/x/<id>) belong to the previous client.
+  const next = String(form.get('next') ?? '');
+  const section = /^\/[a-z-]+/.exec(next)?.[0];
+  // Every page and the shared layout depend on the active client: drop the client-side router cache.
+  revalidatePath('/', 'layout');
+  redirect(section ?? '/dashboard');
 }
 
 export async function createClientOrgAction(form: FormData) {
