@@ -23,11 +23,15 @@ function fetchContext(budgetMs = RUN_BUDGET_MS): FetchContext {
   };
 }
 
-function asAppError(e: unknown): never {
+const PLATFORM_DETAIL_CODES = new Set(['credentials_rejected', 'provider_error']);
+
+export function asAppError(e: unknown): never {
   if (e instanceof ConnectorError) {
     console.error('connector error', e.message);
-    // The platform's own error text (never contains the secret) is shown to help fix the key.
-    const detail = e.message.startsWith(`${e.code}: `) ? e.message.slice(e.code.length + 2).replace(/[|\r\n]+/g, ' ').trim().slice(0, 200) : '';
+    // Only the platform's own response text is shown, to help fix a refused key. Other details can echo what the
+    // user typed (for example words of a recovery phrase pasted as addresses) and must not reach the URL.
+    const showDetail = PLATFORM_DETAIL_CODES.has(e.code) && e.message.startsWith(`${e.code}: `);
+    const detail = showDetail ? e.message.slice(e.code.length + 2).replace(/[|\r\n]+/g, ' ').trim().slice(0, 200) : '';
     throw new AppError(e.code === 'credentials_rejected' || e.code.startsWith('api_key') ? 'forbidden' : 'invalid', detail ? `${e.code}|platform=${detail}` : e.code);
   }
   throw e;
