@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { runAccounting, type AccountingPolicy, type AccountingTx, type EngineIssue } from '@/core/accounting/engine';
 import { postingsToLines, type JournalLine } from '@/core/accounting/journal';
-import type { Dec } from '@/core/decimal';
+import { D, type Dec } from '@/core/decimal';
 import { sha256 } from '@/core/fingerprint';
 import type { Classification } from '@/core/types';
 import { zurichDate } from '@/core/valuation/rateTable';
@@ -113,8 +113,13 @@ export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status:
       const producedTx = new Set<string>();
       // Cumulative rounding per account across the whole history (see postingsToLines).
       const carry = new Map<string, Dec>();
+      const exact = new Map<string, Dec>();
+      const booked = new Map<string, Dec>();
+      const add = (m: Map<string, Dec>, k: string, v: Dec) => m.set(k, (m.get(k) ?? new D(0)).plus(v));
       for (const r of engine.results) {
+        for (const p of r.postings) add(exact, p.key, p.amount);
         const lines = postingsToLines(r.postings, carry);
+        for (const ln of lines) { add(booked, ln.debitKey, new D(ln.amount)); add(booked, ln.creditKey, new D(ln.amount).neg()); }
         if (lines.length === 0) continue;
         producedTx.add(r.txId);
         const l = byId.get(r.txId)!;
@@ -146,7 +151,12 @@ export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status:
           issues.push({ txId: e.transactionId, code: 'not_bookable', message: `L’écriture validée ${e.referenceNr} ne correspond plus au calcul. Passez une extourne explicite.` });
         }
       }
-      if (issues.length > 0) await db.update(calculationRuns).set({ issues }).where(eq(calculationRuns.id, runId));
+      const roundingLedger = [...exact.keys()].sort().map((key) => {
+        const e = exact.get(key)!;
+        const b = booked.get(key) ?? new D(0);
+        return { key, exactChf: e.toString(), bookedChf: b.toFixed(2), carriedChf: e.minus(b).toString() };
+      });
+      await db.update(calculationRuns).set({ issues, roundingLedger }).where(eq(calculationRuns.id, runId));
     }
     await audit(db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'calculation.run', entity: 'calculation_run', entityId: runId,
       after: { status, policy, issues: issues.length, created, unchanged, superseded } });

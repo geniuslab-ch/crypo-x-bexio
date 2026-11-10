@@ -72,6 +72,20 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
         <p className="small muted">Seules les écritures validées peuvent être envoyées à bexio. Une écriture validée n’est jamais modifiée automatiquement.</p>
       </form>
 
+      {run?.status === 'complete' && Array.isArray(run.roundingLedger) && (
+        <div className="card stack">
+          <h2 style={{ margin: 0 }}>Reports d’arrondi par compte</h2>
+          <p className="small muted">Les calculs se font en pleine précision ; bexio reçoit des montants au centime. Le reste d’arrondi de chaque compte est reporté sur sa prochaine écriture, pour que le total comptabilisé corresponde toujours au total exact. « En attente » = montant pas encore comptabilisé, toujours inférieur à un demi-centime sauf ajustement d’équilibre d’une écriture. État au dernier calcul du {date(run.createdAt)}.</p>
+          <div className="table-wrap"><table className="table">
+            <thead><tr><th>Compte</th><th className="num">Total exact CHF</th><th className="num">Comptabilisé CHF</th><th className="num">Report en attente CHF</th></tr></thead>
+            <tbody>{(run.roundingLedger as { key: string; exactChf: string; bookedChf: string; carriedChf: string }[]).map((r) => (
+              <tr key={r.key}><td className="small">{keyLabel(r.key)}</td><td className="num mono small">{r.exactChf}</td><td className="num"><Money value={r.bookedChf} /></td>
+                <td className="num mono small">{r.carriedChf === '0' ? '0' : r.carriedChf}</td></tr>
+            ))}</tbody>
+          </table></div>
+        </div>
+      )}
+
       <div className="grid grid-2">
         <form action={importRatesAction} className="card stack">
           <h2>{t('acc.rates')}</h2>

@@ -88,6 +88,10 @@ describe('import → classify → value → calculate → validate → bexio', (
       ['external_withdrawal_counterpart', 'realized_gain', '315.91'],
       ['network_fees', 'realized_gain', '2.80'],
     ]);
+    const { latestRun } = await import('@/server/services/calculation');
+    const ledger = (await latestRun(ctx))!.roundingLedger as { key: string; exactChf: string; bookedChf: string; carriedChf: string }[];
+    expect(ledger.length).toBeGreaterThan(0);
+    for (const r of ledger) expect(new D(r.exactChf).minus(r.bookedChf).toString()).toBe(new D(r.carriedChf).toString());
     // Re-running with identical inputs changes nothing.
     const again = await runCalculation(ctx);
     expect(again).toMatchObject({ created: 0, unchanged: 4, superseded: 0 });

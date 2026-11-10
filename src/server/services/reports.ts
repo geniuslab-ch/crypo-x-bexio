@@ -161,7 +161,10 @@ export async function buildReport(ctx: Ctx, type: ReportType, opts: { year: numb
       }
     }
     return {
-      title: 'Journal comptable', meta: baseMeta(ctx, [['Année', yearLabel], ['Devise', 'CHF']]),
+      title: 'Journal comptable', meta: baseMeta(ctx, [['Année', yearLabel], ['Devise', 'CHF'],
+        ...(((await latestCompleteRun(ctx))?.roundingLedger as { key: string; carriedChf: string }[] | null) ?? [])
+          .filter((r) => r.carriedChf !== '0')
+          .map((r): [string, string] => [`Report d’arrondi en attente : ${r.key}`, `${r.carriedChf} CHF`])]),
       columns: ['Date', 'Référence', 'Compte débit', 'Compte crédit', 'Montant CHF', 'Libellé', 'Statut', 'ID bexio', 'Clé débit', 'Clé crédit'],
       rows,
     };
