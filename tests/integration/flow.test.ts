@@ -1,0 +1,176 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { eq } from 'drizzle-orm';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { getSession, login, registerUser } from '@/server/auth/service';
+import type { Ctx } from '@/server/context';
+import { encryptSecret } from '@/server/crypto';
+import { closeDb, type DB } from '@/server/db';
+import { auditLog, bexioConnections, journalEntries, transactions } from '@/server/db/schema';
+import { BexioClient } from '@/integrations/bexio/client';
+import { completeConnect, connectionTokenProvider, refreshBexioData, setMapping, startConnect, syncEntries } from '@/server/services/bexio';
+import { listEntries, runCalculation, setEntriesValidated } from '@/server/services/calculation';
+import { setManualClassification } from '@/server/services/classification';
+import { createSource, importFile } from '@/server/services/imports';
+import { importRates } from '@/server/services/valuation';
+import { fakeBexio, resetDatabase } from './helpers';
+
+const fixture = (f: string) => readFileSync(path.join(import.meta.dirname, '..', 'fixtures', f), 'utf8');
+
+let db: DB;
+let ctx: Ctx;
+
+beforeAll(async () => {
+  db = await resetDatabase();
+  const { userId, orgId } = await registerUser(db, {
+    email: 'owner@example.test', password: 'correct horse battery', name: 'Owner', orgName: 'Test GmbH', orgKind: 'company', canton: 'ZG',
+  });
+  ctx = { db, userId, orgId, role: 'owner' };
+});
+afterAll(async () => closeDb());
+
+describe('auth', () => {
+  it('logs in and resolves the session with its organization', async () => {
+    const { token } = await login(db, 'OWNER@example.test', 'correct horse battery');
+    const s = await getSession(db, token);
+    expect(s?.orgName).toBe('Test GmbH');
+    expect(s?.role).toBe('owner');
+    await expect(login(db, 'owner@example.test', 'wrong password!!')).rejects.toThrow('invalid_credentials');
+  });
+  it('refuses duplicate emails', async () => {
+    await expect(registerUser(db, { email: 'owner@example.test', password: 'xxxxxxxxxxxx', name: 'X', orgName: 'Y', orgKind: 'private' })).rejects.toThrow('email_taken');
+  });
+});
+
+describe('import → classify → value → calculate → validate → bexio', () => {
+  let sourceId: string;
+
+  it('imports a Kraken ledger and detects duplicates', async () => {
+    sourceId = await createSource(ctx, { provider: 'kraken', label: 'Kraken', kind: 'exchange' });
+    const r = await importFile(ctx, { sourceId, fileName: 'ledgers.csv', content: fixture('kraken_ledgers.csv') });
+    expect(r).toMatchObject({ parserId: 'kraken_ledger_v1', imported: 5, duplicates: 0 });
+    await expect(importFile(ctx, { sourceId, fileName: 'again.csv', content: fixture('kraken_ledgers.csv') })).rejects.toThrow('file_already_imported');
+    // Same rows in a different file (extra blank line) → rows deduplicated by fingerprint.
+    const r2 = await importFile(ctx, { sourceId, fileName: 'again.csv', content: `${fixture('kraken_ledgers.csv')}\n` });
+    expect(r2).toMatchObject({ imported: 0, duplicates: 5 });
+  });
+
+  it('blocks the calculation while transactions need review or rates are missing', async () => {
+    const run = await runCalculation(ctx);
+    expect(run.status).toBe('blocked');
+    const codes = run.issues.map((i) => i.code).sort();
+    expect(codes).toContain('needs_review'); // unmatched BTC withdrawal
+    expect(codes).toContain('missing_rate'); // staking reward without a documented rate
+    expect(run.created).toBe(0);
+  });
+
+  it('completes once the user confirms the withdrawal and documented rates are imported', async () => {
+    const [w] = await db.select().from(transactions).where(eq(transactions.externalId, 'Q2AAAA-AAAAA-AAAAAA'));
+    await setManualClassification(ctx, w!.id, 'withdrawal', false);
+    const rates = await importRates(ctx, [
+      'asset,date,rate_chf,source,source_url',
+      'BTC,2024-03-01,55000,Test rate table,https://example.test/rates',
+      'BTC,2024-03-02,56000,Test rate table,https://example.test/rates',
+    ].join('\n'));
+    expect(rates.inserted).toBe(2);
+    const { revalue } = await import('@/server/services/valuation');
+    await revalue(ctx);
+    const run = await runCalculation(ctx);
+    expect(run.issues).toEqual([]);
+    expect(run.status).toBe('complete');
+    expect(run.created).toBe(4); // fiat deposit, buy, staking reward, withdrawal (internal staking move has no booking)
+
+    const entries = await listEntries(ctx, ['draft']);
+    const withdrawal = entries.find((e) => e.transactionId === w!.id)!;
+    expect(withdrawal.lines.map((l) => [l.debitKey, l.creditKey, l.amountChf])).toEqual([
+      ['external_withdrawal_counterpart', 'crypto_asset:BTC', '804.09'],
+      ['external_withdrawal_counterpart', 'realized_gain', '315.91'],
+      ['network_fees', 'realized_gain', '2.80'],
+    ]);
+    // Re-running with identical inputs changes nothing.
+    const again = await runCalculation(ctx);
+    expect(again).toMatchObject({ created: 0, unchanged: 4, superseded: 0 });
+  });
+
+  it('syncs validated entries to bexio idempotently, recovering from an unknown outcome', async () => {
+    await db.insert(bexioConnections).values({
+      orgId: ctx.orgId, encryptedTokens: encryptSecret(JSON.stringify({ accessToken: 'access-1', refreshToken: 'refresh-1', expiresAt: Date.now() + 3600_000 })),
+      scopes: 'openid offline_access accounting', connectedBy: ctx.userId,
+    });
+    const bexio = fakeBexio({ failNextPostWithNetworkError: true });
+    const client = new BexioClient(connectionTokenProvider(db, ctx.orgId, bexio.fetchImpl), bexio.fetchImpl);
+    await refreshBexioData(ctx, client);
+    const map: [string, number][] = [
+      ['crypto_asset:*', 1], ['fiat_clearing:*', 2], ['bank_clearing', 3], ['realized_gain', 4], ['network_fees', 5],
+      ['staking_income', 6], ['external_withdrawal_counterpart', 7], ['realized_loss', 8], ['trading_fees', 8],
+    ];
+    for (const [k, id] of map) await setMapping(ctx, k, id);
+
+    // Only validated entries are synced.
+    const drafts = await listEntries(ctx, ['draft']);
+    expect((await syncEntries(ctx, undefined, client)).results).toEqual([]);
+    expect(await setEntriesValidated(ctx, drafts.map((d) => d.id), true)).toBe(4);
+
+    const first = await syncEntries(ctx, undefined, client);
+    expect(first.synced).toBe(3);
+    expect(first.results.filter((r) => r.outcome === 'unknown')).toHaveLength(1);
+    expect(bexio.created).toHaveLength(4); // bexio stored the 4th although the response was lost
+
+    const second = await syncEntries(ctx, undefined, client);
+    expect(second).toMatchObject({ synced: 0, recovered: 1, failed: 0 });
+    expect(bexio.created).toHaveLength(4); // no duplicate created
+    expect(bexio.calls.filter((c) => c.method === 'POST' && c.url.endsWith('/manual_entries'))).toHaveLength(4);
+
+    const all = await listEntries(ctx);
+    expect(all.every((e) => e.status === 'synced' && e.bexioManualEntryId)).toBe(true);
+    const post = bexio.calls.find((c) => c.method === 'POST' && c.url.endsWith('/manual_entries'))!;
+    expect(post.body).toMatchObject({ date: expect.stringMatching(/^2024-/), reference_nr: expect.stringMatching(/^C2B-/) });
+    expect((post.body as { entries: { currency_id: number; currency_factor: number }[] }).entries[0]).toMatchObject({ currency_id: 1, currency_factor: 1 });
+  });
+
+  it('never changes synced entries and refuses reclassifying locked transactions', async () => {
+    const [w] = await db.select().from(transactions).where(eq(transactions.externalId, 'Q2AAAA-AAAAA-AAAAAA'));
+    await expect(setManualClassification(ctx, w!.id, 'internal_transfer', false)).rejects.toThrow('transaction_locked_by_validated_entry');
+    const run = await runCalculation(ctx);
+    expect(run).toMatchObject({ created: 0, superseded: 0 });
+  });
+
+  it('reports a definite bexio rejection as failed with the message', async () => {
+    const [entry] = await db.select().from(journalEntries).limit(1);
+    await db.update(journalEntries).set({ status: 'validated' }).where(eq(journalEntries.id, entry!.id));
+    const bexio = fakeBexio({ reject422: true });
+    const client = new BexioClient(connectionTokenProvider(db, ctx.orgId, bexio.fetchImpl), bexio.fetchImpl);
+    const r = await syncEntries(ctx, [entry!.id], client);
+    expect(r.results[0]).toMatchObject({ outcome: 'failed', message: expect.stringContaining('Validation error') });
+  });
+
+  it('writes an audit trail', async () => {
+    const actions = (await db.select({ a: auditLog.action }).from(auditLog)).map((r) => r.a);
+    for (const a of ['user.registered', 'import.completed', 'transaction.classified', 'rates.imported', 'calculation.run', 'entry.validated', 'mapping.updated', 'bexio.sync']) {
+      expect(actions).toContain(a);
+    }
+  });
+});
+
+describe('bexio OAuth', () => {
+  it('validates state, exchanges the code and stores encrypted tokens', async () => {
+    process.env.BEXIO_CLIENT_ID = 'client';
+    process.env.BEXIO_CLIENT_SECRET = 'secret';
+    process.env.APP_URL = 'http://localhost:3000';
+    const url = new URL(await startConnect(ctx));
+    expect(url.origin + url.pathname).toBe('https://auth.bexio.com/realms/bexio/protocol/openid-connect/auth');
+    expect(url.searchParams.get('scope')).toContain('accounting');
+    expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:3000/api/bexio/callback');
+    const state = url.searchParams.get('state')!;
+    const bexio = fakeBexio();
+    await expect(completeConnect(db, 'someone-else', state, 'code', bexio.fetchImpl)).rejects.toThrow('invalid_oauth_state');
+    // The state is single-use: start again.
+    const state2 = new URL(await startConnect(ctx)).searchParams.get('state')!;
+    const orgId = await completeConnect(db, ctx.userId, state2, 'code', bexio.fetchImpl);
+    expect(orgId).toBe(ctx.orgId);
+    const [conn] = await db.select().from(bexioConnections).where(eq(bexioConnections.orgId, ctx.orgId));
+    expect(conn!.encryptedTokens).not.toContain('access-2');
+    const tokenCall = bexio.calls.find((c) => c.url.includes('/token'))!;
+    expect(String(tokenCall.body)).toContain('grant_type=authorization_code');
+  });
+});

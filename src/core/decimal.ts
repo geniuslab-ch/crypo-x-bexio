@@ -1,7 +1,7 @@
 import Decimal from 'decimal.js';
 
 /** Dedicated Decimal constructor for accounting: high precision, half-up rounding to cents at the edges. */
-export const D = Decimal.clone({ precision: 40, rounding: Decimal.ROUND_HALF_UP });
+export const D = Decimal.clone({ precision: 40, rounding: Decimal.ROUND_HALF_UP, toExpNeg: -40, toExpPos: 40 });
 export type Dec = InstanceType<typeof D>;
 
 export const ZERO = new D(0);
