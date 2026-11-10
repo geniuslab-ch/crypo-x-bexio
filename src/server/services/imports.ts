@@ -2,6 +2,8 @@ import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { sha256, transactionFingerprint } from '@/core/fingerprint';
 import { detectImporter, getImporter, INTEGRATIONS } from '@/core/importers';
+import type { ParseResult } from '@/core/types';
+import { connectorFor } from '@/integrations/sources';
 import { audit } from '../audit';
 import { AppError, assertCanWrite, type Ctx } from '../context';
 import { importBatches, movements, sources, transactions } from '../db/schema';
@@ -19,6 +21,9 @@ export const sourceSchema = z.object({
 export async function createSource(ctx: Ctx, input: z.input<typeof sourceSchema>): Promise<string> {
   assertCanWrite(ctx);
   const data = sourceSchema.parse(input);
+  // Blockchain sources are wallets by definition.
+  const connector = connectorFor(data.provider);
+  if (connector?.kind === 'wallet') data.kind = 'wallet';
   const [s] = await ctx.db.insert(sources).values({ orgId: ctx.orgId, ...data, connectionType: 'csv' }).returning({ id: sources.id });
   await audit(ctx.db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'source.created', entity: 'source', entityId: s!.id, after: data });
   return s!.id;
@@ -71,19 +76,37 @@ export async function importFile(
     throw new AppError('invalid', parsed.issues[0].message);
   }
 
-  const result = await ctx.db.transaction(async (db) => {
+  const result = await persistBatch(ctx, source.id, {
+    parserId: importer.id, parserVersion: importer.version, fileName: input.fileName, content: input.content, fileSha, parsed,
+  });
+  await reclassify(ctx);
+  await revalue(ctx, { fetchMissing: true });
+  return result;
+}
+
+/**
+ * Stores one batch of parsed transactions with its raw evidence (file content or API responses), skipping
+ * transactions already known for this source (fingerprint). Shared by file imports and API/address syncs.
+ */
+export async function persistBatch(
+  ctx: Ctx,
+  sourceId: string,
+  input: { parserId: string; parserVersion: number; fileName: string; content: string; fileSha: string; parsed: ParseResult },
+): Promise<ImportResult> {
+  const { parsed } = input;
+  return ctx.db.transaction(async (db) => {
     const [batch] = await db.insert(importBatches).values({
-      orgId: ctx.orgId, sourceId: source.id, parserId: importer.id, parserVersion: importer.version, fileName: input.fileName.slice(0, 255),
-      fileSha256: fileSha, fileContent: input.content, rowCount: parsed.transactions.reduce((a, t) => a + t.rowNumbers.length, 0) + parsed.issues.length,
+      orgId: ctx.orgId, sourceId, parserId: input.parserId, parserVersion: input.parserVersion, fileName: input.fileName.slice(0, 255),
+      fileSha256: input.fileSha, fileContent: input.content, rowCount: parsed.transactions.reduce((a, t) => a + t.rowNumbers.length, 0) + parsed.issues.length,
       importedCount: 0, duplicateCount: 0, issues: parsed.issues, createdBy: ctx.userId,
     }).returning({ id: importBatches.id });
     let imported = 0;
     let duplicates = 0;
     for (const t of parsed.transactions) {
       const [row] = await db.insert(transactions).values({
-        orgId: ctx.orgId, sourceId: source.id, batchId: batch!.id, externalId: t.externalId, txHash: t.txHash ?? null,
+        orgId: ctx.orgId, sourceId, batchId: batch!.id, externalId: t.externalId, txHash: t.txHash ?? null,
         occurredAt: t.occurredAt, rawType: t.rawType, raw: t.raw, rowNumbers: t.rowNumbers, note: t.note ?? null,
-        fingerprint: transactionFingerprint(source.id, t), hint: t.hint ?? null, sourceChfValue: t.sourceChfValue ?? null,
+        fingerprint: transactionFingerprint(sourceId, t), hint: t.hint ?? null, sourceChfValue: t.sourceChfValue ?? null,
       }).onConflictDoNothing().returning({ id: transactions.id });
       if (!row) {
         duplicates++;
@@ -97,15 +120,11 @@ export async function importFile(
       }
     }
     await db.update(importBatches).set({ importedCount: imported, duplicateCount: duplicates }).where(eq(importBatches.id, batch!.id));
-    await db.update(sources).set({ lastSyncedAt: new Date() }).where(eq(sources.id, source.id));
+    await db.update(sources).set({ lastSyncedAt: new Date() }).where(eq(sources.id, sourceId));
     await audit(db, {
       orgId: ctx.orgId, actorUserId: ctx.userId, action: 'import.completed', entity: 'import_batch', entityId: batch!.id,
-      after: { parser: importer.id, file: input.fileName, imported, duplicates, issues: parsed.issues.length },
+      after: { parser: input.parserId, file: input.fileName, imported, duplicates, issues: parsed.issues.length },
     });
-    return { batchId: batch!.id, parserId: importer.id, imported, duplicates, issues: parsed.issues };
+    return { batchId: batch!.id, parserId: input.parserId, imported, duplicates, issues: parsed.issues };
   });
-
-  await reclassify(ctx);
-  await revalue(ctx, { fetchMissing: true });
-  return result;
 }

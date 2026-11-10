@@ -1,10 +1,15 @@
-import { createSourceAction, importFileAction } from '@/app/actions';
-import { Flash } from '@/components/Flash';
+import { connectSourceAction, createSourceAction, disconnectSourceAction, importFileAction, syncSourceAction } from '@/app/actions';
+import { Flash, flashText } from '@/components/Flash';
 import { StatusBadge } from '@/components/ui';
 import { IMPORTERS, INTEGRATIONS } from '@/core/importers';
 import { getI18n } from '@/i18n/server';
 import { requireCtx } from '@/server/auth/next';
+import { connectorFor } from '@/integrations/sources';
 import { listBatches, listSources } from '@/server/services/imports';
+import { maskedCredentials } from '@/server/services/sync';
+
+/** A sync run may take up to ~45 s against the provider's API. */
+export const maxDuration = 60;
 
 export default async function SourcesPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   const sp = await searchParams;
@@ -39,9 +44,57 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
           <label>{t('src.label')}<input name="label" required maxLength={120} placeholder="Kraken – compte société" /></label>
           <label>Type<select name="kind"><option value="exchange">{t('src.kind.exchange')}</option><option value="wallet">{t('src.kind.wallet')}</option></select></label>
           <button className="btn" type="submit">{t('src.add')}</button>
-          {sources.length > 0 && <div className="small">{sources.map((s) => <div key={s.id}>• {s.label} <span className="muted">({s.provider}) · {s.lastSyncedAt ? date(s.lastSyncedAt) : t('common.never')}</span></div>)}</div>}
         </form>
       </div>
+
+      {sources.length > 0 && (
+        <div className="card stack">
+          <h2>Vos sources</h2>
+          {sources.map((s) => {
+            const c = connectorFor(s.provider);
+            const masked = c ? maskedCredentials(c, s.encryptedCredentials) : [];
+            const connected = masked.length > 0;
+            return (
+              <div key={s.id} className="source-row">
+                <div className="source-head">
+                  <div><b>{s.label}</b> <span className="muted small">({s.provider}) · dernière synchro : {s.lastSyncedAt ? date(s.lastSyncedAt) : t('common.never')}</span></div>
+                  {connected ? <span className="badge badge-ok">{c!.kind === 'wallet' ? 'Adresses suivies' : 'API connectée'}</span>
+                    : c ? <span className="badge">Non connectée</span> : <span className="badge">Import CSV</span>}
+                </div>
+                {s.syncNote ? (
+                  <p className={`small ${s.syncNote.startsWith('failed:') ? 'neg' : 'muted'}`} style={{ margin: '4px 0 0' }}>
+                    {s.syncNote.startsWith('failed:') ? `Dernière synchronisation en échec : ${flashText(s.syncNote.slice(7))}` : s.syncNote}
+                  </p>
+                ) : null}
+                {c && connected ? (
+                  <div className="source-actions">
+                    <div className="small">{masked.map((m) => <div key={m.label}><span className="muted">{m.label} :</span> <span className="mono">{m.value}</span></div>)}</div>
+                    <form action={syncSourceAction}><input type="hidden" name="sourceId" value={s.id} /><button className="btn btn-primary" type="submit">Synchroniser</button></form>
+                    <form action={disconnectSourceAction}><input type="hidden" name="sourceId" value={s.id} /><button className="btn" type="submit">Déconnecter</button></form>
+                  </div>
+                ) : c ? (
+                  <details className="source-connect">
+                    <summary>{c.kind === 'wallet' ? 'Ajouter les adresses publiques' : 'Connecter par API (lecture seule)'}</summary>
+                    <form action={connectSourceAction} className="stack" style={{ marginTop: 10 }}>
+                      <input type="hidden" name="sourceId" value={s.id} />
+                      <p className="small">{c.help}</p>
+                      {c.fields.map((f) => (
+                        <label key={f.name}>{f.label}
+                          {f.multiline
+                            ? <textarea name={`cred_${f.name}`} required={!f.optional} rows={f.secret ? 5 : 3} placeholder={f.placeholder} autoComplete="off" spellCheck={false} className="mono" />
+                            : <input name={`cred_${f.name}`} type={f.secret ? 'password' : 'text'} required={!f.optional} placeholder={f.placeholder} autoComplete="off" spellCheck={false} />}
+                        </label>
+                      ))}
+                      <p className="small muted">{c.limits} Les clés sont chiffrées (AES-256) et ne sont jamais réaffichées.</p>
+                      <button className="btn btn-primary" type="submit">Vérifier et enregistrer</button>
+                    </form>
+                  </details>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="card">
         <h2>{t('src.batches')}</h2>

@@ -15,6 +15,13 @@
       "when": 1794281249033,
       "tag": "0001_seed_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794298686143,
+      "tag": "0002_source_sync",
+      "breakpoints": true
     }
   ]
 }

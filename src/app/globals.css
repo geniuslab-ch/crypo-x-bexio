@@ -58,6 +58,15 @@ code { background: #f1efe9; padding: 1px 5px; border-radius: 4px; font-size: 12p
 .client-switch-add { display: block; padding: 8px 10px; border-top: 1px solid var(--line); color: var(--warn); text-decoration: none; font-weight: 600; }
 @media (max-width: 520px) { .topbar { justify-content: stretch; } .client-switch, .client-switch-btn { width: 100%; max-width: none; } }
 
+/* ---------- Sources ---------- */
+.source-row { border-top: 1px solid var(--line); padding-top: 12px; }
+.source-row:first-of-type { border-top: 0; padding-top: 0; }
+.source-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.source-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.source-actions > .small { flex: 1; min-width: 220px; }
+.source-connect summary { cursor: pointer; color: var(--warn); font-weight: 600; margin-top: 6px; }
+.source-connect textarea { width: 100%; font-size: 12px; }
+
 /* ---------- Shell ---------- */
 .shell { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
 .sidebar {

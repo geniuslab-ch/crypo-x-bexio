@@ -27,16 +27,19 @@ export interface IntegrationStatus {
 }
 
 export const INTEGRATIONS: IntegrationStatus[] = [
-  { provider: 'generic', label: 'Crypto2Books CSV template', csv: 'supported', api: 'unavailable', note: 'Any source, using our documented template.' },
-  { provider: 'kraken', label: 'Kraken', csv: 'partial', api: 'planned', note: 'Ledger CSV import available; read-only API planned for Phase 2.' },
-  { provider: 'coinbase', label: 'Coinbase', csv: 'partial', api: 'planned', note: 'Transaction history CSV import available; API planned for Phase 2.' },
-  { provider: 'binance', label: 'Binance', csv: 'planned', api: 'planned', note: 'Use the generic template for now.' },
-  { provider: 'cryptocom', label: 'Crypto.com', csv: 'planned', api: 'unavailable', note: 'The retail App has no public history API; CSV only.' },
-  { provider: 'swissborg', label: 'SwissBorg', csv: 'planned', api: 'unavailable', note: 'No public retail API known; statement import planned.' },
-  { provider: 'bitpanda', label: 'Bitpanda', csv: 'planned', api: 'planned', note: 'Use the generic template for now.' },
-  { provider: 'ledger', label: 'Ledger', csv: 'planned', api: 'planned', note: 'Public address / xpub import planned. Never enter your recovery phrase.' },
-  { provider: 'trezor', label: 'Trezor', csv: 'planned', api: 'planned', note: 'Public address / xpub import planned. Never enter your recovery phrase.' },
-  { provider: 'metamask', label: 'MetaMask / EVM', csv: 'planned', api: 'planned', note: 'Public address import via a blockchain indexer planned for Phase 2.' },
+  { provider: 'generic', label: 'Crypto2Books CSV template', csv: 'supported', api: 'unavailable', note: 'Toute source, avec notre modèle documenté.' },
+  { provider: 'kraken', label: 'Kraken', csv: 'partial', api: 'partial', note: 'CSV « Ledgers » ou API lecture seule (même traitement).' },
+  { provider: 'coinbase', label: 'Coinbase', csv: 'partial', api: 'partial', note: 'CSV « Transaction history » ou clé API CDP « View » uniquement.' },
+  { provider: 'binance', label: 'Binance', csv: 'planned', api: 'partial', note: 'API lecture seule : dépôts, retraits, trades spot. Convert/Earn à venir.' },
+  { provider: 'bitcoin', label: 'Bitcoin (adresses)', csv: 'unavailable', api: 'partial', note: 'Adresses publiques via mempool.space. xpub à venir.' },
+  { provider: 'ethereum', label: 'Ethereum (adresses)', csv: 'unavailable', api: 'partial', note: 'ETH + jetons ERC-20 via Etherscan. Autres réseaux EVM à venir.' },
+  { provider: 'bitstamp', label: 'Bitstamp', csv: 'planned', api: 'planned', note: 'API officielle disponible ; intégration à venir.' },
+  { provider: 'cryptocom', label: 'Crypto.com', csv: 'planned', api: 'unavailable', note: 'L’app grand public n’a pas d’API d’historique : CSV uniquement.' },
+  { provider: 'swissborg', label: 'SwissBorg', csv: 'planned', api: 'unavailable', note: 'Pas d’API publique : import du relevé à venir.' },
+  { provider: 'bitpanda', label: 'Bitpanda', csv: 'planned', api: 'planned', note: 'Utilisez le modèle CSV en attendant.' },
+  { provider: 'ledger', label: 'Ledger', csv: 'planned', api: 'unavailable', note: 'Ajoutez vos adresses publiques comme source Bitcoin ou Ethereum. Jamais la phrase de récupération.' },
+  { provider: 'trezor', label: 'Trezor', csv: 'planned', api: 'unavailable', note: 'Ajoutez vos adresses publiques comme source Bitcoin ou Ethereum. Jamais la phrase de récupération.' },
+  { provider: 'metamask', label: 'MetaMask / EVM', csv: 'planned', api: 'unavailable', note: 'Ajoutez votre adresse 0x… comme source Ethereum.' },
 ];
 
 export type { Importer };

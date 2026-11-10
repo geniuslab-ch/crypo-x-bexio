@@ -80,6 +80,10 @@ export const sources = pgTable('sources', {
   /** AES-256-GCM encrypted JSON; read-only API keys only. Never private keys or seed phrases. */
   encryptedCredentials: text('encrypted_credentials'),
   lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
+  /** Connector progress between runs (raw records of an unfinished pass, cursors). Never credentials. */
+  syncState: jsonb('sync_state').$type<Record<string, unknown>>(),
+  /** Outcome of the last sync run, shown to the user. */
+  syncNote: text('sync_note'),
   createdAt: createdAt(),
 });
 

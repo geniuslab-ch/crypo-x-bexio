@@ -16,6 +16,7 @@ import { disconnect, refreshBexioData, setMapping, syncEntries } from '@/server/
 import { markPolicyReviewed, runCalculation, setEntriesValidated, updatePolicy } from '@/server/services/calculation';
 import { reclassify, setManualClassification } from '@/server/services/classification';
 import { createSource, importFile } from '@/server/services/imports';
+import { removeConnection, saveConnection, syncSource } from '@/server/services/sync';
 import { importRates, revalue } from '@/server/services/valuation';
 
 /** Error codes raised when the server cannot reach or log in to PostgreSQL (configuration problem, not user input). */
@@ -148,6 +149,44 @@ export async function importFileAction(form: FormData) {
       sourceId: String(form.get('sourceId')), fileName: file.name, content: await file.text(), parserId: String(form.get('parserId') ?? '') || null,
     });
     text = `imported:${r.imported}|duplicates:${r.duplicates}|issues:${r.issues.length}`;
+  } catch (e) {
+    back('/sources', 'error', msg(e));
+  }
+  revalidatePath('/', 'layout');
+  back('/sources', 'ok', text);
+}
+
+export async function connectSourceAction(form: FormData) {
+  const { ctx } = await requireCtx();
+  const sourceId = String(form.get('sourceId') ?? '');
+  const input: Record<string, string> = {};
+  for (const [k, v] of form.entries()) if (k.startsWith('cred_') && typeof v === 'string') input[k.slice(5)] = v;
+  let text = '';
+  try {
+    const r = await saveConnection(ctx, sourceId, input);
+    text = r.kind === 'wallet' ? 'addresses_saved' : r.readOnly === 'verified' ? 'connection_saved_verified' : 'connection_saved';
+  } catch (e) {
+    back('/sources', 'error', msg(e));
+  }
+  back('/sources', 'ok', text);
+}
+
+export async function disconnectSourceAction(form: FormData) {
+  const { ctx } = await requireCtx();
+  try {
+    await removeConnection(ctx, String(form.get('sourceId') ?? ''));
+  } catch (e) {
+    back('/sources', 'error', msg(e));
+  }
+  back('/sources', 'ok', 'connection_removed');
+}
+
+export async function syncSourceAction(form: FormData) {
+  const { ctx } = await requireCtx();
+  let text = '';
+  try {
+    const r = await syncSource(ctx, String(form.get('sourceId') ?? ''));
+    text = r.complete ? `imported:${r.imported}|duplicates:${r.duplicates}|issues:${r.issues}` : 'sync_partial';
   } catch (e) {
     back('/sources', 'error', msg(e));
   }

@@ -29,72 +29,81 @@ export const krakenLedgerImporter: Importer = {
   parse(text): ParseResult {
     const table = readCsv(text, REQUIRED);
     if (!table) return { transactions: [], issues: [{ rowNumber: 0, message: 'Header row not recognised as Kraken ledger export' }] };
-    const issues: ParseResult['issues'] = [];
-    const groups = new Map<string, { rows: Record<string, string>[]; lines: number[] }>();
-    table.rows.forEach((row, i) => {
-      const line = table.lineNumbers[i] ?? i + 2;
-      if (!col(row, 'txid')) {
-        // Kraken lists pending entries without a txid; the settled entry appears separately.
-        issues.push({ rowNumber: line, message: 'Ignorée : ligne sans txid (opération en attente dans l’export Kraken)' });
-        return;
-      }
-      const refid = col(row, 'refid') || col(row, 'txid');
-      const g = groups.get(refid) ?? { rows: [], lines: [] };
-      g.rows.push(row);
-      g.lines.push(line);
-      groups.set(refid, g);
-    });
-
-    const transactions: ParsedTransaction[] = [];
-    for (const [refid, g] of groups) {
-      const net = new Map<string, Dec>();
-      const fees = new Map<string, Dec>();
-      let bad = false;
-      let occurredAt: Date | null = null;
-      for (const [k, row] of g.rows.entries()) {
-        const asset = normalizeKrakenAsset(col(row, 'asset'));
-        const amount = parseAmount(col(row, 'amount'));
-        const feeRaw = col(row, 'fee').trim();
-        // A blank fee means no fee; a non-blank value that does not parse is an error, never a silent zero.
-        const fee = feeRaw === '' ? new D(0) : parseAmount(feeRaw);
-        const t = parseTimestamp(col(row, 'time'));
-        if (!amount || !t || !asset || !fee) {
-          issues.push({ rowNumber: g.lines[k] ?? 0, message: `Ligne invalide (actif/montant/frais/date) dans refid ${refid}` });
-          bad = true;
-          break;
-        }
-        if (!occurredAt || t < occurredAt) occurredAt = t;
-        net.set(asset, (net.get(asset) ?? new D(0)).plus(amount));
-        if (!fee.isZero()) fees.set(asset, (fees.get(asset) ?? new D(0)).plus(fee));
-      }
-      if (bad || !occurredAt) continue;
-
-      const movements: Movement[] = [];
-      for (const [asset, amt] of net) {
-        if (amt.isZero()) continue;
-        movements.push({ direction: amt.isPositive() ? 'in' : 'out', asset, quantity: amt.abs().toString() });
-      }
-      for (const [asset, fee] of fees) {
-        movements.push({ direction: 'fee', asset, quantity: fee.abs().toString() });
-      }
-
-      const types = [...new Set(g.rows.map((r) => col(r, 'type').toLowerCase()))];
-      const subtypes = [...new Set(g.rows.map((r) => col(r, 'subtype').toLowerCase()).filter(Boolean))];
-      const rawType = [types.join('+'), subtypes.join('+')].filter(Boolean).join(':');
-      transactions.push({
-        externalId: refid,
-        occurredAt,
-        rawType,
-        movements,
-        raw: g.rows,
-        rowNumbers: g.lines,
-        hint: krakenHint(types, subtypes, movements),
-      });
-    }
-    transactions.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
-    return { transactions, issues };
+    return parseKrakenLedgerRows(table.rows, table.rows.map((_, i) => table.lineNumbers[i] ?? i + 2));
   },
 };
+
+/**
+ * Turns Kraken ledger entries into transactions. Shared by the CSV export and the read-only API
+ * (`/0/private/Ledgers` returns the same fields), so both paths classify and net identically.
+ * `lines` are row numbers in the CSV, or 1-based positions in the API response.
+ */
+export function parseKrakenLedgerRows(rows: Record<string, string>[], lines: number[]): ParseResult {
+  const issues: ParseResult['issues'] = [];
+  const groups = new Map<string, { rows: Record<string, string>[]; lines: number[] }>();
+  rows.forEach((row, i) => {
+    const line = lines[i] ?? i + 1;
+    if (!col(row, 'txid')) {
+      // Kraken lists pending entries without a txid; the settled entry appears separately.
+      issues.push({ rowNumber: line, message: 'Ignorée : ligne sans txid (opération en attente dans l’export Kraken)' });
+      return;
+    }
+    const refid = col(row, 'refid') || col(row, 'txid');
+    const g = groups.get(refid) ?? { rows: [], lines: [] };
+    g.rows.push(row);
+    g.lines.push(line);
+    groups.set(refid, g);
+  });
+
+  const transactions: ParsedTransaction[] = [];
+  for (const [refid, g] of groups) {
+    const net = new Map<string, Dec>();
+    const fees = new Map<string, Dec>();
+    let bad = false;
+    let occurredAt: Date | null = null;
+    for (const [k, row] of g.rows.entries()) {
+      const asset = normalizeKrakenAsset(col(row, 'asset'));
+      const amount = parseAmount(col(row, 'amount'));
+      const feeRaw = col(row, 'fee').trim();
+      // A blank fee means no fee; a non-blank value that does not parse is an error, never a silent zero.
+      const fee = feeRaw === '' ? new D(0) : parseAmount(feeRaw);
+      const t = parseTimestamp(col(row, 'time'));
+      if (!amount || !t || !asset || !fee) {
+        issues.push({ rowNumber: g.lines[k] ?? 0, message: `Ligne invalide (actif/montant/frais/date) dans refid ${refid}` });
+        bad = true;
+        break;
+      }
+      if (!occurredAt || t < occurredAt) occurredAt = t;
+      net.set(asset, (net.get(asset) ?? new D(0)).plus(amount));
+      if (!fee.isZero()) fees.set(asset, (fees.get(asset) ?? new D(0)).plus(fee));
+    }
+    if (bad || !occurredAt) continue;
+
+    const movements: Movement[] = [];
+    for (const [asset, amt] of net) {
+      if (amt.isZero()) continue;
+      movements.push({ direction: amt.isPositive() ? 'in' : 'out', asset, quantity: amt.abs().toString() });
+    }
+    for (const [asset, fee] of fees) {
+      movements.push({ direction: 'fee', asset, quantity: fee.abs().toString() });
+    }
+
+    const types = [...new Set(g.rows.map((r) => col(r, 'type').toLowerCase()))];
+    const subtypes = [...new Set(g.rows.map((r) => col(r, 'subtype').toLowerCase()).filter(Boolean))];
+    const rawType = [types.join('+'), subtypes.join('+')].filter(Boolean).join(':');
+    transactions.push({
+      externalId: refid,
+      occurredAt,
+      rawType,
+      movements,
+      raw: g.rows,
+      rowNumbers: g.lines,
+      hint: krakenHint(types, subtypes, movements),
+    });
+  }
+  transactions.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
+  return { transactions, issues };
+}
 
 function krakenHint(types: string[], subtypes: string[], movements: Movement[]): ParsedTransaction['hint'] {
   const principal = movements.filter((m) => m.direction !== 'fee');
