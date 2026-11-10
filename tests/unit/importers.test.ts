@@ -84,6 +84,15 @@ describe('kraken ledger importer', () => {
     ]);
     expect(r.issues.some((i) => i.message.includes('sans txid'))).toBe(true);
   });
+  it('rejects a malformed fee instead of treating it as zero', () => {
+    const csv = [
+      '"txid","refid","time","type","subtype","aclass","asset","amount","fee","balance"',
+      '"L1","R1","2024-01-01 00:00:00","withdrawal","","currency","XXBT","-0.1","abc","0"',
+    ].join('\n');
+    const res = krakenLedgerImporter.parse(csv);
+    expect(res.transactions).toHaveLength(0);
+    expect(res.issues[0]?.message).toContain('frais');
+  });
   it('is not detected as generic', () => {
     expect(detectImporter(fixture('kraken_ledgers.csv'))?.id).toBe('kraken_ledger_v1');
   });

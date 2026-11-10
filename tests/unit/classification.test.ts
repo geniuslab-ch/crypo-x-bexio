@@ -50,3 +50,13 @@ describe('classification', () => {
     expect(r.get('b')).toMatchObject({ classification: 'mining_reward', origin: 'user' });
   });
 });
+
+describe('transfer gap with a recorded fee', () => {
+  it('does not derive a second fee when the source already records it', () => {
+    const r = classifyTransactions([
+      tx({ id: 'w', sourceId: 'a', movements: [{ direction: 'out', asset: 'BTC', quantity: '0.02' }, { direction: 'fee', asset: 'BTC', quantity: '0.00005' }] }),
+      tx({ id: 'd', sourceId: 'b', movements: [{ direction: 'in', asset: 'BTC', quantity: '0.01995' }] }),
+    ], []);
+    expect(r.get('w')).toMatchObject({ classification: 'internal_transfer', implicitFee: null });
+  });
+});

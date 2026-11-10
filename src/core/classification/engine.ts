@@ -171,6 +171,8 @@ function matchOwnTransfers(
     const wOut = w.movements.find((m) => m.direction === 'out');
     if (!wOut) continue;
     const wQty = new D(wOut.quantity);
+    // Fees the source already records in the same asset are not part of the unexplained gap.
+    const knownFee = w.movements.filter((m) => m.direction === 'fee' && m.asset === wOut.asset).reduce((a, m) => a.plus(m.quantity), new D(0));
     for (const d of deposits) {
       if (d.sourceId === w.sourceId) continue;
       const dIn = d.movements.find((m) => m.direction === 'in');
@@ -180,7 +182,7 @@ function matchOwnTransfers(
       if (!byHash && (dt < -skewMs || dt > windowMs)) continue;
       const dQty = new D(dIn.quantity);
       if (dQty.gt(wQty)) continue;
-      const gap = wQty.minus(dQty);
+      const gap = D.max(wQty.minus(dQty).minus(knownFee), 0);
       if (!byHash && gap.div(wQty).gt(options.transferTolerance)) continue;
       candidates.push({ w, d, gap, byHash, score: (byHash ? 1e15 : 0) - Math.abs(dt) - gap.div(wQty).toNumber() * 1e9 });
     }

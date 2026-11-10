@@ -169,9 +169,20 @@ export async function buildReport(ctx: Ctx, type: ReportType, opts: { year: numb
   };
 }
 
+/**
+ * Neutralises spreadsheet formula injection: text cells starting with = + - @ (or tab/CR) are prefixed with a quote.
+ * Plain numbers such as "-12.50" are left untouched.
+ */
+export function safeCell(v: string | number | null): string | number | null {
+  if (typeof v !== 'string') return v;
+  if (/^-?\d+(\.\d+)?$/.test(v)) return v;
+  return /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+}
+
 export function reportToCsv(r: Report): string {
-  const meta = r.meta.map(([k, v]) => [`# ${k}`, v]);
-  return '﻿' + Papa.unparse([[`# ${r.title}`], ...meta, [], r.columns, ...r.rows], { delimiter: ';' });
+  const meta = r.meta.map(([k, v]) => [`# ${k}`, safeCell(v)]);
+  const rows = r.rows.map((row) => row.map(safeCell));
+  return '\uFEFF' + Papa.unparse([[`# ${r.title}`], ...meta, [], r.columns, ...rows], { delimiter: ';' });
 }
 
 export async function reportToXlsx(r: Report): Promise<Buffer> {

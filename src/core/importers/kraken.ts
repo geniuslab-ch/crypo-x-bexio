@@ -54,10 +54,12 @@ export const krakenLedgerImporter: Importer = {
       for (const [k, row] of g.rows.entries()) {
         const asset = normalizeKrakenAsset(col(row, 'asset'));
         const amount = parseAmount(col(row, 'amount'));
-        const fee = parseAmount(col(row, 'fee')) ?? new D(0);
+        const feeRaw = col(row, 'fee').trim();
+        // A blank fee means no fee; a non-blank value that does not parse is an error, never a silent zero.
+        const fee = feeRaw === '' ? new D(0) : parseAmount(feeRaw);
         const t = parseTimestamp(col(row, 'time'));
-        if (!amount || !t || !asset) {
-          issues.push({ rowNumber: g.lines[k] ?? 0, message: `Invalid row (asset/amount/time) in refid ${refid}` });
+        if (!amount || !t || !asset || !fee) {
+          issues.push({ rowNumber: g.lines[k] ?? 0, message: `Ligne invalide (actif/montant/frais/date) dans refid ${refid}` });
           bad = true;
           break;
         }
