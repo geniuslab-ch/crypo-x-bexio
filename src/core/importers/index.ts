@@ -35,6 +35,7 @@ export const INTEGRATIONS: IntegrationStatus[] = [
   { provider: 'ethereum', label: 'Ethereum (adresses)', csv: 'unavailable', api: 'partial', note: 'ETH, jetons ERC-20, NFT et swaps DeFi via Etherscan. Autres réseaux EVM à venir.' },
   { provider: 'solana', label: 'Solana (staking)', csv: 'unavailable', api: 'partial', note: 'Récompenses de staking natif via RPC public. Envois/réceptions à venir.' },
   { provider: 'cardano', label: 'Cardano (staking)', csv: 'unavailable', api: 'partial', note: 'Récompenses de délégation ADA via Koios. Envois/réceptions à venir.' },
+  { provider: 'icp', label: 'Internet Computer (ICP, OGY)', csv: 'supported', api: 'planned', note: 'Cours CHF automatiques ICP et OGY ; import par le modèle CSV. Lecture directe du ledger ICP à venir.' },
   { provider: 'polkadot', label: 'Polkadot (staking)', csv: 'planned', api: 'planned', note: 'Via Subscan (clé API gratuite) : documentation en cours de vérification. En attendant : staking via Kraken, Coinbase ou Binance, ou CSV.' },
   { provider: 'bitstamp', label: 'Bitstamp', csv: 'planned', api: 'planned', note: 'API officielle disponible ; intégration à venir.' },
   { provider: 'cryptocom', label: 'Crypto.com', csv: 'planned', api: 'unavailable', note: 'L’app grand public n’a pas d’API d’historique : CSV uniquement.' },

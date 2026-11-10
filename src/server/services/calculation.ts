@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { runAccounting, type AccountingPolicy, type AccountingTx, type EngineIssue } from '@/core/accounting/engine';
 import { postingsToLines, type JournalLine } from '@/core/accounting/journal';
+import type { Dec } from '@/core/decimal';
 import { sha256 } from '@/core/fingerprint';
 import type { Classification } from '@/core/types';
 import { zurichDate } from '@/core/valuation/rateTable';
@@ -110,8 +111,10 @@ export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status:
         .where(and(eq(journalEntries.orgId, ctx.orgId), ne(journalEntries.status, 'superseded')));
       const existingByTx = new Map(existing.map((e) => [e.transactionId, e]));
       const producedTx = new Set<string>();
+      // Cumulative rounding per account across the whole history (see postingsToLines).
+      const carry = new Map<string, Dec>();
       for (const r of engine.results) {
-        const lines = postingsToLines(r.postings);
+        const lines = postingsToLines(r.postings, carry);
         if (lines.length === 0) continue;
         producedTx.add(r.txId);
         const l = byId.get(r.txId)!;

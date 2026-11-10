@@ -12,7 +12,7 @@
 /** Explicit symbol → CoinGecko id map. Symbols are ambiguous, so unknown symbols are never guessed. */
 export const COINGECKO_IDS: Record<string, string> = {
   BTC: 'bitcoin', ETH: 'ethereum', USDT: 'tether', USDC: 'usd-coin', BNB: 'binancecoin', SOL: 'solana', XRP: 'ripple',
-  ADA: 'cardano', DOGE: 'dogecoin', DOT: 'polkadot', MATIC: 'matic-network', POL: 'polygon-ecosystem-token', LTC: 'litecoin',
+  ADA: 'cardano', DOGE: 'dogecoin', DOT: 'polkadot', MATIC: 'matic-network', POL: 'polygon-ecosystem-token', LTC: 'litecoin', ICP: 'internet-computer', OGY: 'origyn-foundation',
   AVAX: 'avalanche-2', LINK: 'chainlink', ATOM: 'cosmos', XLM: 'stellar', TRX: 'tron', ALGO: 'algorand', XTZ: 'tezos',
   DAI: 'dai', UNI: 'uniswap', AAVE: 'aave', BCH: 'bitcoin-cash', ETC: 'ethereum-classic', XMR: 'monero', NEAR: 'near',
   ARB: 'arbitrum', OP: 'optimism', CHSB: 'swissborg', BORG: 'swissborg', CRO: 'crypto-com-chain', BEST: 'bitpanda-ecosystem-token',

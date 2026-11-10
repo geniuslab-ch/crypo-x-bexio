@@ -130,3 +130,23 @@ describe('postings and journal lines', () => {
     ]);
   });
 });
+
+describe('cumulative rounding', () => {
+  it('books 1000 rewards of 0.004 CHF as 4.00 CHF in total, every entry balanced', async () => {
+    const { D } = await import('@/core/decimal');
+    const carry = new Map();
+    let crypto = new D(0);
+    let income = new D(0);
+    for (let i = 0; i < 1000; i++) {
+      const lines = postingsToLines([{ key: 'crypto_asset:ADA', amount: new D('0.004') }, { key: 'staking_income', amount: new D('-0.004') }], carry);
+      for (const l of lines) {
+        if (l.debitKey === 'crypto_asset:ADA') crypto = crypto.plus(l.amount);
+        if (l.creditKey === 'staking_income') income = income.plus(l.amount);
+      }
+    }
+    expect(crypto.toFixed(2)).toBe('4.00');
+    expect(income.toFixed(2)).toBe('4.00');
+    // Without the carry every entry rounds to zero and nothing is booked.
+    expect(postingsToLines([{ key: 'crypto_asset:ADA', amount: new D('0.004') }, { key: 'staking_income', amount: new D('-0.004') }])).toEqual([]);
+  });
+});
