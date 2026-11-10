@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { runAccounting, type AccountingTx, type AccountingPolicy } from '@/core/accounting/engine';
 import { postingsToLines } from '@/core/accounting/journal';
-import { D } from '@/core/decimal';
+import { D, type Dec } from '@/core/decimal';
 import type { ValuedMovement } from '@/core/valuation/value';
 
 const mv = (direction: ValuedMovement['direction'], asset: string, quantity: string, chfValue: string | null): ValuedMovement => ({
@@ -22,7 +22,7 @@ function scenario() {
   ];
 }
 
-function balanced(postings: { amount: D }[]) {
+function balanced(postings: { amount: Dec }[]) {
   return postings.reduce((a, p) => a.plus(p.amount), new D(0)).isZero();
 }
 
