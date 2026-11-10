@@ -59,6 +59,7 @@ const LABELS: Record<string, string> = {
 /** Turns a stored message code (or `code|label:n` list) into French text. */
 export function flashText(text: string): string {
   return text.split('|').map((part) => {
+    if (part.startsWith('platform=')) return `Réponse de la plateforme : « ${part.slice(9)} »`;
     const [k, v] = part.split(':');
     if (v !== undefined && k && LABELS[k]) return `${v} ${LABELS[k]}`;
     return MESSAGES[part] ?? part;

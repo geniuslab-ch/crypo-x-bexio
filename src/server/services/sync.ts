@@ -26,7 +26,9 @@ function fetchContext(budgetMs = RUN_BUDGET_MS): FetchContext {
 function asAppError(e: unknown): never {
   if (e instanceof ConnectorError) {
     console.error('connector error', e.message);
-    throw new AppError(e.code === 'credentials_rejected' || e.code.startsWith('api_key') ? 'forbidden' : 'invalid', e.code);
+    // The platform's own error text (never contains the secret) is shown to help fix the key.
+    const detail = e.message.startsWith(`${e.code}: `) ? e.message.slice(e.code.length + 2).replace(/[|\r\n]+/g, ' ').trim().slice(0, 200) : '';
+    throw new AppError(e.code === 'credentials_rejected' || e.code.startsWith('api_key') ? 'forbidden' : 'invalid', detail ? `${e.code}|platform=${detail}` : e.code);
   }
   throw e;
 }
