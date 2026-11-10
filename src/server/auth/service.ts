@@ -17,7 +17,7 @@ export const registerSchema = z.object({
   orgName: z.string().trim().min(1).max(160),
   orgKind: z.enum(['company', 'sole_trader', 'private']),
   canton: z.string().trim().max(2).optional().nullable(),
-  locale: z.enum(['fr', 'en', 'de']).default('fr'),
+  locale: z.enum(['fr', 'en', 'de', 'it']).default('fr'),
 });
 
 export type RegisterInput = z.input<typeof registerSchema>;

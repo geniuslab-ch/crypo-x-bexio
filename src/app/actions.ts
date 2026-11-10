@@ -122,7 +122,7 @@ export async function createClientOrgAction(form: FormData) {
 export async function setLocaleAction(form: FormData) {
   const { ctx } = await requireCtx();
   const locale = String(form.get('locale'));
-  if (['fr', 'en', 'de'].includes(locale)) await ctx.db.update(users).set({ locale }).where(eq(users.id, ctx.userId));
+  if (['fr', 'en', 'de', 'it'].includes(locale)) await ctx.db.update(users).set({ locale }).where(eq(users.id, ctx.userId));
   revalidatePath('/', 'layout');
   back('/settings', 'ok', 'saved');
 }

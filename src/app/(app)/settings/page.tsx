@@ -33,7 +33,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <div className="stack">
           <form action={setLocaleAction} className="card stack">
             <h2>{t('set.language')}</h2>
-            <select name="locale" defaultValue={session.locale}><option value="fr">Français</option><option value="en">English</option><option value="de">Deutsch</option></select>
+            <select name="locale" defaultValue={session.locale}><option value="fr">Français</option><option value="en">English</option><option value="de">Deutsch</option><option value="it">Italiano</option></select>
             <button className="btn" type="submit">{t('common.save')}</button>
           </form>
           {(ctx.role === 'fiduciary' || ctx.role === 'accountant') && (
