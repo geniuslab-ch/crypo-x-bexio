@@ -1,8 +1,12 @@
 const MESSAGES: Record<string, string> = {
   invalid_credentials: 'E-mail ou mot de passe incorrect.',
   too_many_attempts: 'Trop de tentatives. Réessayez dans 15 minutes.',
+  password_mismatch: 'Les deux mots de passe ne correspondent pas.',
   email_taken: 'Un compte existe déjà avec cet e-mail.',
   invalid_input: 'Certaines informations sont invalides (mot de passe : 10 caractères minimum).',
+  database_unavailable: 'La base de données est inaccessible (configuration DATABASE_URL à vérifier).',
+  server_not_configured: 'Le serveur n’est pas encore configuré (variables d’environnement manquantes).',
+  unexpected_error: 'Erreur inattendue côté serveur. Réessayez ; si cela persiste, contactez le support.',
   file_already_imported: 'Ce fichier a déjà été importé pour cette source.',
   format_not_recognised: 'Format non reconnu. Utilisez le modèle CSV Crypto2Books ou choisissez le bon format.',
   parser_does_not_match_source: 'Ce format ne correspond pas à la plateforme de la source choisie.',

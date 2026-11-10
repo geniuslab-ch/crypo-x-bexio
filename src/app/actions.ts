@@ -8,6 +8,7 @@ import { CLASSIFICATIONS, type Classification } from '@/core/types';
 import { clearSessionCookie, requireCtx, SESSION_COOKIE, setSessionCookie } from '@/server/auth/next';
 import { login, logout, registerUser, switchOrg } from '@/server/auth/service';
 import { audit } from '@/server/audit';
+import { BexioHttpError } from '@/integrations/bexio/client';
 import { AppError } from '@/server/context';
 import { getDb } from '@/server/db';
 import { accountingPolicies, memberships, organizations, users } from '@/server/db/schema';
@@ -17,11 +18,23 @@ import { reclassify, setManualClassification } from '@/server/services/classific
 import { createSource, importFile } from '@/server/services/imports';
 import { importRates, revalue } from '@/server/services/valuation';
 
+/** Error codes raised when the server cannot reach or log in to PostgreSQL (configuration problem, not user input). */
+const DB_UNAVAILABLE = new Set([
+  'ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'ECONNRESET', 'EAI_AGAIN', 'SELF_SIGNED_CERT_IN_CHAIN', 'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE', '28P01', '28000', '3D000', '42P01',
+]);
+
+/** Maps an error to a message code for the UI. Internal details are logged server-side and never shown to the user. */
 function msg(e: unknown): string {
   if (e instanceof AppError) return e.message;
   if (e && typeof e === 'object' && 'issues' in e) return 'invalid_input';
   console.error(e);
-  return (e as Error)?.message ?? 'unexpected_error';
+  const code = (e as { code?: unknown; cause?: { code?: unknown } } | null)?.code ?? (e as { cause?: { code?: unknown } } | null)?.cause?.code;
+  if (typeof code === 'string' && DB_UNAVAILABLE.has(code)) return 'database_unavailable';
+  if (e instanceof Error && /DATABASE_URL|APP_ENCRYPTION_KEY/.test(e.message)) return 'server_not_configured';
+  // Errors reported by external services (bexio, CoinGecko) are useful to the user and contain no internal detail.
+  if (e instanceof BexioHttpError || (e instanceof Error && /^(bexio|CoinGecko) /.test(e.message))) return e.message;
+  return 'unexpected_error';
 }
 
 function back(path: string, kind: 'ok' | 'error', text: string): never {
@@ -31,7 +44,20 @@ function back(path: string, kind: 'ok' | 'error', text: string): never {
 
 // ---------- Auth ----------
 
+/** Non-secret registration fields echoed back after an error so the form does not have to be retyped. Passwords never are. */
+const REGISTER_KEEP = ['name', 'email', 'orgName', 'orgKind', 'canton', 'locale'] as const;
+
+function registerBack(form: FormData, error: string): never {
+  const q = new URLSearchParams({ error });
+  for (const k of REGISTER_KEEP) {
+    const v = String(form.get(k) ?? '').slice(0, 200);
+    if (v) q.set(k, v);
+  }
+  redirect(`/register?${q.toString()}`);
+}
+
 export async function registerAction(form: FormData) {
+  if (String(form.get('password') ?? '') !== String(form.get('passwordConfirm') ?? '')) registerBack(form, 'password_mismatch');
   let ok = false;
   try {
     const db = getDb();
@@ -44,7 +70,7 @@ export async function registerAction(form: FormData) {
     await setSessionCookie(token);
     ok = true;
   } catch (e) {
-    back('/register', 'error', msg(e));
+    registerBack(form, msg(e));
   }
   if (ok) redirect('/dashboard');
 }
