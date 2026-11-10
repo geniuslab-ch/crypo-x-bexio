@@ -291,9 +291,63 @@ const de: Dict = {
   'set.window': 'Zeitfenster für Transferabgleich (Stunden)', 'set.markReviewed': 'Als geprüft markieren (Treuhänder)',
 };
 
-export const LOCALES = ['fr', 'en', 'de'] as const;
+const it: Dict = {
+  'app.tagline': 'Dalle cripto ai libri contabili.',
+  'nav.dashboard': 'Panoramica', 'nav.transactions': 'Transazioni', 'nav.review': 'Da verificare', 'nav.sources': 'Wallet ed exchange',
+  'nav.accounting': 'Contabilità', 'nav.bexio': 'Integrazione bexio', 'nav.reports': 'Rapporti', 'nav.fiduciary': 'Spazio fiduciario',
+  'nav.settings': 'Impostazioni', 'nav.logout': 'Esci',
+  'auth.login': 'Accedi', 'auth.register': 'Crea un account', 'auth.email': 'E-mail', 'auth.password': 'Password', 'auth.name': 'Il suo nome',
+  'auth.orgName': 'Nome della società o del dossier', 'auth.orgKind': 'Tipo', 'auth.kind.company': 'Società (SA, Sagl)', 'auth.kind.sole_trader': 'Indipendente',
+  'auth.kind.private': 'Investitore privato', 'auth.canton': 'Cantone (es. TI)', 'auth.noAccount': 'Non ha ancora un account?', 'auth.haveAccount': 'Ha già un account?',
+  'auth.trial': 'Prova gratuita, senza carta di credito.', 'auth.passwordHint': 'Almeno 10 caratteri', 'auth.passwordConfirm': 'Conferma password', 'client.label': 'Cliente', 'client.search': 'Cerca un cliente…', 'client.none': 'Nessun cliente trovato', 'client.add': 'Nuovo cliente',
+  'common.save': 'Salva', 'common.cancel': 'Annulla', 'common.download': 'Scarica', 'common.none': 'Nessuno', 'common.never': 'Mai', 'common.all': 'Tutti',
+  'common.search': 'Cerca', 'common.filter': 'Filtra', 'common.from': 'Dal', 'common.to': 'Al', 'common.status': 'Stato', 'common.date': 'Data',
+  'common.asset': 'Attivo', 'common.quantity': 'Quantità', 'common.valueChf': 'Valore CHF', 'common.source': 'Fonte', 'common.details': 'Dettagli', 'common.actions': 'Azioni',
+  'dash.title': 'Panoramica', 'dash.cost': 'Costo d’acquisto delle posizioni', 'dash.value': 'Valore del portafoglio (CHF)', 'dash.realized': 'Utili/perdite realizzati',
+  'dash.unrealized': 'Utili/perdite non realizzati', 'dash.review': 'Transazioni da verificare', 'dash.toValidate': 'Registrazioni da convalidare', 'dash.lastImport': 'Ultima importazione',
+  'dash.lastBexio': 'Ultima sincronizzazione bexio', 'dash.missingPrice': 'Prezzo mancante per almeno un attivo', 'dash.holdings': 'Posizioni per attivo', 'dash.workflow': 'Avanzamento',
+  'dash.empty': 'Inizi importando un file CSV del suo exchange o wallet.', 'dash.rateMissing': 'Transazioni senza corso CHF documentato',
+  'step.import': 'Importare', 'step.classify': 'Classificare', 'step.calculate': 'Calcolare', 'step.validate': 'Convalidare', 'step.sync': 'Sincronizzare',
+  'tx.title': 'Transazioni', 'tx.reviewTitle': 'Transazioni da verificare',
+  'tx.reviewIntro': 'Queste transazioni non hanno potuto essere classificate con certezza. Le confermi o le corregga: il calcolo resta bloccato finché non sono verificate.',
+  'tx.type': 'Tipo', 'tx.classification': 'Classificazione', 'tx.confidence': 'Affidabilità', 'tx.legs': 'Movimenti', 'tx.fees': 'Commissioni', 'tx.needsReview': 'Da verificare',
+  'tx.ok': 'OK', 'tx.rateMissing': 'Corso mancante', 'tx.export': 'Esporta CSV', 'tx.evidence': 'Prova (riga/e originale/i)', 'tx.why': 'Perché questa classificazione?',
+  'tx.correct': 'Correggere la classificazione', 'tx.remember': 'Applicare a tutte le transazioni di questo tipo di questa fonte', 'tx.confirm': 'Confermare',
+  'tx.reset': 'Tornare alla classificazione automatica', 'tx.locked': 'Questa transazione fa parte di una registrazione convalidata e non può più essere modificata.', 'tx.empty': 'Nessuna transazione.',
+  'tx.rate': 'Corso CHF', 'tx.rateSource': 'Fonte del corso',
+  'src.title': 'Wallet ed exchange', 'src.add': 'Aggiungi una fonte', 'src.label': 'Nome', 'src.provider': 'Piattaforma', 'src.kind.exchange': 'Exchange', 'src.kind.wallet': 'Wallet',
+  'src.import': 'Importa un file CSV', 'src.file': 'File', 'src.parser': 'Formato', 'src.autodetect': 'Rilevamento automatico', 'src.batches': 'Cronologia delle importazioni',
+  'src.matrix': 'Integrazioni disponibili', 'src.csv': 'Importazione CSV', 'src.api': 'API',
+  'src.security': 'Crypto2Books non chiede mai le sue chiavi private, la frase di recupero né diritti di prelievo.', 'src.template': 'Modello CSV Crypto2Books',
+  'src.imported': 'importate', 'src.duplicates': 'doppioni ignorati', 'src.issues': 'righe respinte',
+  'support.supported': 'Supportato', 'support.partial': 'Parziale', 'support.planned': 'Previsto', 'support.unavailable': 'Non disponibile',
+  'acc.title': 'Contabilità', 'acc.policy': 'Politica contabile', 'acc.method': 'Metodo del costo', 'acc.fees': 'Commissioni di trading',
+  'acc.fees.capitalize': 'Incluse nel costo / dedotte dal ricavo', 'acc.fees.expense': 'Oneri finanziari', 'acc.notReviewed': 'Non ancora verificata dal suo fiduciario',
+  'acc.reviewed': 'Verificata dal suo fiduciario il', 'acc.run': 'Avvia il calcolo', 'acc.lastRun': 'Ultimo calcolo', 'acc.blocked': 'Calcolo bloccato',
+  'acc.complete': 'Calcolo completo', 'acc.issues': 'Punti da risolvere', 'acc.entries': 'Registrazioni contabili', 'acc.validateSelected': 'Convalida la selezione',
+  'acc.unvalidateSelected': 'Riporta in bozza', 'acc.debit': 'Dare', 'acc.credit': 'Avere', 'acc.amount': 'Importo CHF', 'acc.rates': 'Corsi CHF documentati',
+  'acc.ratesIntro': 'Importi corsi CHF con la loro fonte (CSV: asset,date,rate_chf,source,source_url). Sono usati quando una transazione non ha un controvalore CHF diretto.',
+  'acc.ratesImport': 'Importa i corsi', 'acc.replace': 'Sostituisci i corsi esistenti (registrato)', 'acc.noEntries': 'Nessuna registrazione. Avvii il calcolo dopo aver verificato le transazioni.',
+  'status.draft': 'Bozza', 'status.validated': 'Convalidata', 'status.synced': 'Inviata a bexio', 'status.sync_failed': 'Invio non riuscito', 'status.superseded': 'Sostituita',
+  'bx.title': 'Integrazione bexio', 'bx.connect': 'Collega bexio', 'bx.connected': 'Collegato', 'bx.notConnected': 'Non collegato',
+  'bx.notConfigured': 'L’app bexio non è ancora configurata su questo server. Variabili richieste: BEXIO_CLIENT_ID, BEXIO_CLIENT_SECRET, APP_URL (URL di ritorno: APP_URL/api/bexio/callback).',
+  'bx.scopeNote': 'bexio non offre un accesso contabile in sola lettura: l’autorizzazione «accounting» permette anche di scrivere. Crypto2Books invia solo le registrazioni che lei ha convalidato.',
+  'bx.refresh': 'Carica il piano dei conti', 'bx.mapping': 'Corrispondenza dei conti', 'bx.mappingIntro': 'Scelga il conto bexio per ogni categoria. Gli esempi sono indicativi: li concordi con il suo fiduciario.',
+  'bx.sync': 'Invia le registrazioni convalidate', 'bx.attempts': 'Registro di sincronizzazione', 'bx.disconnect': 'Scollega', 'bx.lastSync': 'Ultima sincronizzazione', 'bx.noAccounts': 'Piano dei conti non caricato.',
+  'rep.title': 'Rapporti', 'rep.year': 'Esercizio', 'rep.transactions': 'Cronologia delle transazioni e conversione in CHF', 'rep.realized': 'Utili e perdite realizzati',
+  'rep.holdings': 'Portafoglio e non realizzati (al 31.12)', 'rep.wealth': 'Elenco dei titoli per la dichiarazione d’imposta (valori AFC al 31.12)', 'rep.journal': 'Giornale contabile (esportazione per il fiduciario)', 'rep.income': 'Staking e altri redditi', 'rep.fees': 'Commissioni',
+  'rep.pdfNote': 'L’esportazione PDF è prevista in fase 2. I file Excel e CSV contengono l’intestazione di audit (data, metodo, impronta dei dati).',
+  'fid.title': 'Spazio fiduciario', 'fid.intro': 'Può già gestire più dossier con lo stesso account e passare dall’uno all’altro. La panoramica multi-cliente e gli inviti arriveranno in fase 3.',
+  'fid.clients': 'I suoi dossier', 'fid.addClient': 'Aggiungi un dossier cliente', 'fid.switch': 'Apri',
+  'set.title': 'Impostazioni', 'set.language': 'Lingua',
+  'set.disclaimer': 'Crypto2Books è uno strumento di supporto contabile. Non sostituisce il suo fiduciario o consulente fiscale e non è un’autorità fiscale.',
+  'set.references': 'Riferimenti ufficiali', 'set.policyLocked': 'Il metodo non può più essere modificato perché esistono registrazioni convalidate.',
+  'set.window': 'Finestra di abbinamento dei trasferimenti (ore)', 'set.markReviewed': 'Segna come verificata (fiduciario)',
+};
+
+export const LOCALES = ['fr', 'en', 'de', 'it'] as const;
 export type Locale = (typeof LOCALES)[number];
-const dicts: Record<Locale, Dict> = { fr, en, de };
+const dicts: Record<Locale, Dict> = { fr, en, de, it };
 
 export function translator(locale: string) {
   const d = dicts[(LOCALES as readonly string[]).includes(locale) ? (locale as Locale) : 'fr'];
@@ -318,6 +372,12 @@ export const CLASSIFICATION_LABELS: Record<Locale, Record<string, string>> = {
     withdrawal: 'Externe Auszahlung', internal_transfer: 'Übertrag zwischen Ihren Konten', trading_fee: 'Handelsgebühr', network_fee: 'Netzwerkgebühr',
     staking_reward: 'Staking-Ertrag', mining_reward: 'Mining-Ertrag', airdrop: 'Airdrop', lending_interest: 'Zinsertrag (Lending)', defi: 'DeFi',
     liquidity_pool: 'Liquiditätspool', nft_purchase: 'NFT-Kauf', nft_sale: 'NFT-Verkauf', unknown: 'Unbekannt',
+  },
+  it: {
+    buy: 'Acquisto', sell: 'Vendita', swap: 'Scambio cripto', fiat_deposit: 'Deposito fiat', fiat_withdrawal: 'Prelievo fiat', deposit: 'Deposito esterno',
+    withdrawal: 'Prelievo esterno', internal_transfer: 'Trasferimento tra i suoi conti', trading_fee: 'Commissione di trading', network_fee: 'Commissione di rete',
+    staking_reward: 'Ricompensa di staking', mining_reward: 'Ricompensa di mining', airdrop: 'Airdrop', lending_interest: 'Interessi di prestito', defi: 'DeFi',
+    liquidity_pool: 'Pool di liquidità', nft_purchase: 'Acquisto NFT', nft_sale: 'Vendita NFT', unknown: 'Sconosciuto',
   },
 };
 

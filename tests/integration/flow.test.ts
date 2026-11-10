@@ -88,6 +88,10 @@ describe('import → classify → value → calculate → validate → bexio', (
       ['external_withdrawal_counterpart', 'realized_gain', '315.91'],
       ['network_fees', 'realized_gain', '2.80'],
     ]);
+    const { latestRun } = await import('@/server/services/calculation');
+    const ledger = (await latestRun(ctx))!.roundingLedger as { key: string; exactChf: string; bookedChf: string; carriedChf: string }[];
+    expect(ledger.length).toBeGreaterThan(0);
+    for (const r of ledger) expect(new D(r.exactChf).minus(r.bookedChf).toString()).toBe(new D(r.carriedChf).toString());
     // Re-running with identical inputs changes nothing.
     const again = await runCalculation(ctx);
     expect(again).toMatchObject({ created: 0, unchanged: 4, superseded: 0 });
@@ -152,6 +156,19 @@ describe('import → classify → value → calculate → validate → bexio', (
     await expect(setManualClassification(ctx, w!.id, 'internal_transfer', false)).rejects.toThrow('transaction_locked_by_validated_entry');
     const run = await runCalculation(ctx);
     expect(run).toMatchObject({ created: 0, superseded: 0 });
+  });
+
+  it('does not store a rounding ledger when a kept validated entry no longer matches the calculation', async () => {
+    // Earlier history imported late: a cheaper BTC lot changes the FIFO cost of the synced withdrawal.
+    const generic = await createSource(ctx, { provider: 'generic', label: 'Ancien wallet', kind: 'wallet' });
+    await importFile(ctx, { sourceId: generic, fileName: 'old.csv', content: [
+      'date,type,in_asset,in_quantity,out_asset,out_quantity,fee_asset,fee_quantity,external_id,tx_hash,chf_value,note',
+      '2023-12-01T10:00:00Z,buy,BTC,0.1,CHF,2000,,,old-001,,2000,',
+    ].join('\n') });
+    const run = await runCalculation(ctx);
+    expect(run.issues.map((i) => i.code)).toContain('not_bookable');
+    const { latestRun } = await import('@/server/services/calculation');
+    expect((await latestRun(ctx))!.roundingLedger).toBeNull();
   });
 
   it('reports a definite bexio rejection as failed with the message', async () => {

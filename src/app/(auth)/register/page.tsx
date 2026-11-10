@@ -31,7 +31,7 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
           <label>{t('auth.canton')}<input name="canton" defaultValue={sp.canton} maxLength={2} /></label>
         </div>
         <label>Langue / Language / Sprache
-          <select name="locale" defaultValue={sp.locale ?? 'fr'}><option value="fr">Français</option><option value="en">English</option><option value="de">Deutsch</option></select>
+          <select name="locale" defaultValue={sp.locale ?? 'fr'}><option value="fr">Français</option><option value="en">English</option><option value="de">Deutsch</option><option value="it">Italiano</option></select>
         </label>
         <button className="btn btn-primary" type="submit">{t('auth.register')}</button>
       </form>

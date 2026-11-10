@@ -2,6 +2,8 @@ import { connectSourceAction, createSourceAction, disconnectSourceAction, import
 import { Flash, flashText } from '@/components/Flash';
 import { StatusBadge } from '@/components/ui';
 import { IMPORTERS, INTEGRATIONS } from '@/core/importers';
+import { FORMAT_GUIDES } from '@/core/importers/guides';
+import { FormatPicker } from '@/components/FormatPicker';
 import { getI18n } from '@/i18n/server';
 import { requireCtx } from '@/server/auth/next';
 import { connectorFor } from '@/integrations/sources';
@@ -28,10 +30,8 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
           <h2>{t('src.import')}</h2>
           {sources.length === 0 ? <p className="muted">{t('src.add')} ↓</p> : <>
             <label>{t('common.source')}<select name="sourceId" required>{sources.map((s) => <option key={s.id} value={s.id}>{s.label} ({s.provider})</option>)}</select></label>
-            <label>{t('src.parser')}<select name="parserId" defaultValue="">
-              <option value="">{t('src.autodetect')}</option>
-              {IMPORTERS.map((i) => <option key={i.id} value={i.id}>{i.label} — {sl(i.support)}</option>)}
-            </select></label>
+            <FormatPicker label={t('src.parser')} autoLabel={t('src.autodetect')} guides={FORMAT_GUIDES}
+              options={IMPORTERS.map((i) => ({ id: i.id, label: `${i.label} — ${sl(i.support)}` }))} />
             <label>{t('src.file')}<input type="file" name="file" accept=".csv,text/csv" required /></label>
             <button className="btn btn-primary" type="submit">{t('src.import')}</button>
           </>}

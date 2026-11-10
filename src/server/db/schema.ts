@@ -199,6 +199,8 @@ export const calculationRuns = pgTable('calculation_runs', {
   inputHash: text('input_hash').notNull(),
   issues: jsonb('issues').notNull().default([]),
   transactionCount: integer('transaction_count').notNull(),
+  /** Per account key: exact full-precision total, total booked in cents, and the rounding residue carried forward. */
+  roundingLedger: jsonb('rounding_ledger'),
   createdBy: uuid('created_by').notNull(),
   createdAt: createdAt(),
 });
