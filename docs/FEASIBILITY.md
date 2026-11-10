@@ -1,4 +1,4 @@
-# CryptoBook — Feasibility analysis and technical plan
+# Crypto2Books (brief: "CryptoBook") — Feasibility analysis and technical plan
 
 Status: first version, 10 November 2026. Written before implementation, then kept in sync with the Phase 1 code in this repository.
 
@@ -8,7 +8,7 @@ This document answers items A to I of the product brief. Every external capabili
 - **[verified-mirror]** read in a third-party mirror of the official documentation because the official page is rendered client-side and could not be read in full by our tooling. The endpoint names were confirmed on docs.bexio.com itself; the request/response details come from the mirror. These must be re-confirmed against a real bexio trial company before production (this is the first task of the "bexio contract test" in section I).
 - **[to verify]** our current understanding, not yet checked against primary documentation. Nothing tagged this way is implemented as a working integration; it is only planned.
 
-CryptoBook is a bookkeeping support tool. It is not a tax authority, does not issue tax rulings and does not replace a fiduciary or tax advisor.
+Crypto2Books is a bookkeeping support tool. It is not a tax authority, does not issue tax rulings and does not replace a fiduciary or tax advisor.
 
 ---
 
@@ -49,13 +49,13 @@ Sources: https://docs.bexio.com/ (read 10.11.2026; endpoint index, authenticatio
 
 ### Scopes [verified]
 
-| Scope | Meaning (bexio wording) | Used by CryptoBook |
+| Scope | Meaning (bexio wording) | Used by Crypto2Books |
 |---|---|---|
 | `accounting` | "Write access to accounting data" | Yes — accounts, currencies, business years, manual entries, journal |
 | `file` | "Read and write access to the inbox (file upload)" | Phase 2 — attach evidence to entries |
 | `openid profile email offline_access company_profile` | OIDC scopes | `openid offline_access company_profile` |
 
-Important limitation: **there is no read-only accounting scope.** Reading the chart of accounts requires the same `accounting` scope that allows writing. We must therefore explain clearly in the consent UX that CryptoBook will only create entries the user has validated.
+Important limitation: **there is no read-only accounting scope.** Reading the chart of accounts requires the same `accounting` scope that allows writing. We must therefore explain clearly in the consent UX that Crypto2Books will only create entries the user has validated.
 
 ### Accounting endpoints
 
@@ -83,9 +83,9 @@ Limit is per company per minute, HTTP 429 when exceeded, with `RateLimit-Limit`,
 ### Consequences for the design
 
 1. **Direct journal-entry creation is supported**, so the "export file instead of API" fallback is not needed for the core flow. We still provide a journal CSV/Excel export for fiduciaries and as a manual fallback. (Whether bexio's UI can import such a file is [to verify]; we do not claim it.)
-2. **All CryptoBook postings are made in CHF** (`currency_id` = the company's CHF currency id from `/3.0/currencies`, `currency_factor` = 1). Original crypto amounts and the CHF rate used go into the line `description` and remain in CryptoBook as evidence. This avoids creating crypto "currencies" in bexio and keeps bexio's ledger in the functional currency.
+2. **All Crypto2Books postings are made in CHF** (`currency_id` = the company's CHF currency id from `/3.0/currencies`, `currency_factor` = 1). Original crypto amounts and the CHF rate used go into the line `description` and remain in Crypto2Books as evidence. This avoids creating crypto "currencies" in bexio and keeps bexio's ledger in the functional currency.
 3. **Every economic event is expressed as balanced debit/credit line pairs**, which maps 1:1 to `manual_single_entry` (one line) or `manual_group_entry` (several lines sharing a `reference_nr`). We do not need compound entries.
-4. **Idempotency is ours to guarantee.** Each CryptoBook journal entry has a deterministic `reference_nr` (`CB-<org>-<entry>`). Before re-posting after an unknown outcome (timeout, 5xx), the sync job pages through `GET /3.0/accounting/manual_entries` looking for that reference. "Synced" is only set after a 201 response (or a confirmed match) and the returned bexio ids are stored.
+4. **Idempotency is ours to guarantee.** Each Crypto2Books journal entry has a deterministic `reference_nr` (`C2B-<20 hex chars of the entry id>`). Before re-posting after an unknown outcome (timeout, 5xx), the sync job pages through `GET /3.0/accounting/manual_entries` looking for that reference. "Synced" is only set after a 201 response (or a confirmed match) and the returned bexio ids are stored.
 5. **Closed business years**: a booking dated in a closed year is rejected or locked; we fetch business years first and block posting into closed years with a clear message.
 6. **Account mapping must point to existing bexio accounts**; the UI loads `/2.0/accounts` and lets the user choose. If a mapped account is deactivated (`is_active=false`), posting is blocked.
 
@@ -107,7 +107,7 @@ General rules applied regardless of source: read-only keys only; we refuse to st
 | MetaMask / EVM | — | Public address + indexer (Etherscan-family API, which now offers one key across many chains [to verify]; alternatives Alchemy, Covalent) | Internal transactions and token transfers come from separate endpoints; DeFi/LP/NFT semantics need protocol-specific decoding; free tiers are rate-limited. | Phase 2 (transfers), Phase 4 (DeFi/NFT) |
 | Bitcoin addresses | — | Esplora-compatible APIs (e.g. self-hosted or mempool-style) [to verify] | UTXO model: change outputs must be recognised as own funds; needs xpub derivation for HD wallets. | Phase 2 |
 
-**Note on "partial" CSV support in Phase 1.** We do not have authentic export files from every exchange in this repository. The Kraken and Coinbase parsers are written against column layouts we know from these exchanges' exports and are labelled **partial** in the UI. They refuse files whose headers do not match instead of guessing, and every imported row keeps the original raw row as evidence. Each parser must be validated with real customer exports before being labelled **supported**. The **CryptoBook generic CSV template** is fully supported because we define the format.
+**Note on "partial" CSV support in Phase 1.** We do not have authentic export files from every exchange in this repository. The Kraken and Coinbase parsers are written against column layouts we know from these exchanges' exports and are labelled **partial** in the UI. They refuse files whose headers do not match instead of guessing, and every imported row keeps the original raw row as evidence. Each parser must be validated with real customer exports before being labelled **supported**. The **Crypto2Books generic CSV template** is fully supported because we define the format.
 
 **CHF pricing data** (critical dependency):
 
@@ -119,13 +119,13 @@ General rules applied regardless of source: read-only keys only; we refuse to st
 | ESTV Kursliste (ICTax) | Official year-end tax values for common cryptocurrencies (https://www.ictax.admin.ch/) | Year-end valuation reference for tax-supporting reports (Phase 2 import) |
 | Swiss National Bank | Official fiat exchange rates (USD/EUR→CHF) [to verify exact dataset] | Fiat legs in EUR/USD (Phase 2) |
 
-If no documented rate exists for a transaction, CryptoBook marks it **"rate missing"** and blocks entry generation for it. It never uses a guessed or zero value.
+If no documented rate exists for a transaction, Crypto2Books marks it **"rate missing"** and blocks entry generation for it. It never uses a guessed or zero value.
 
 ---
 
 ## D. Swiss accounting and tax items that need professional validation
 
-CryptoBook makes these items **configurable per organisation**, records which configuration was used for every calculation run, and shows a "to be validated by your fiduciary" badge until a fiduciary marks the policy as reviewed.
+Crypto2Books makes these items **configurable per organisation**, records which configuration was used for every calculation run, and shows a "to be validated by your fiduciary" badge until a fiduciary marks the policy as reviewed.
 
 Official references used (to be kept current):
 
@@ -143,7 +143,7 @@ Official references used (to be kept current):
 | D4 | **Fees** (capitalise into cost / deduct from proceeds vs expense) | Affects realised result and asset values (CO Art. 960a acquisition cost). | Configurable; default: trading fees capitalised into cost / deducted from proceeds; network fees on internal transfers expensed. |
 | D5 | **Year-end valuation** | CO Art. 960b allows observable market prices for listed assets, with options for value adjustment reserves; lower-of-cost-or-market otherwise. Tax values use the ESTV Kursliste. | Unrealised gains reported, **no automatic revaluation entry** in Phase 1. |
 | D6 | **Staking, mining, airdrops, lending** | Income character (movable assets vs self-employment) depends on facts per ESTV; accounting recognition timing and valuation also need policy. | Recognised as income at CHF fair value on receipt; account mapping configurable. |
-| D7 | **VAT** | Exchange of payment tokens is generally treated like means of payment (exempt), but mining/staking-as-a-service and NFT sales may differ. | No VAT code (`tax_id`) on any CryptoBook booking unless the user maps one. |
+| D7 | **VAT** | Exchange of payment tokens is generally treated like means of payment (exempt), but mining/staking-as-a-service and NFT sales may differ. | No VAT code (`tax_id`) on any Crypto2Books booking unless the user maps one. |
 | D8 | **Stablecoins** | Payment token vs asset-backed token classification affects treatment. | Treated as crypto assets with their own lots; flagged in reports. |
 | D9 | **Cantonal practice** | Wealth tax valuation and declaration practice differ by canton (e.g. ZG, BL publish their own guidance). | Canton stored on organisation for reports; no cantonal logic in Phase 1. |
 | D10 | **Documentation / retention** | CO Art. 958f: 10-year retention of books and supporting documents. | Raw import files and raw rows are retained; deletion of an organisation is blocked while a retention flag is set (Phase 2). |
@@ -218,7 +218,7 @@ Everything that depends on credentials (bexio, CoinGecko) is fully implemented b
 | Being perceived as tax advice | Regulatory | Liability | Disclaimers, "accounting vs tax-supporting" labels, fiduciary review flags |
 | Data protection (nLPD / GDPR) | Regulatory | Fines, trust | Data minimisation, encryption of secrets, Swiss/EU hosting, deletion workflow, DPA with sub-processors (price/indexer providers receive no personal data) |
 | Exchange API keys with excessive permissions | Security | Loss of funds | Read-only guidance, permission check where possible, encrypted storage |
-| FINMA licensing | Regulatory | — | Not applicable as long as CryptoBook never holds, transfers or trades assets (read-only). To be confirmed by counsel. |
+| FINMA licensing | Regulatory | — | Not applicable as long as Crypto2Books never holds, transfers or trades assets (read-only). To be confirmed by counsel. |
 
 ---
 
@@ -243,7 +243,7 @@ The authoritative schema is `src/server/db/schema.ts` (Drizzle) with SQL migrati
 | `calculation_runs` | Versioned calculation snapshots | `policy_snapshot` (jsonb), `method`, `input_hash`, `status`, `created_by` |
 | `lots` | Acquisition lots (per run) | `run_id`, `asset`, `acquired_at`, `quantity`, `remaining`, `cost_chf`, `origin_movement_id` |
 | `disposals` | Realised results (per run) | `run_id`, `movement_id`, `asset`, `quantity`, `proceeds_chf`, `cost_chf`, `gain_chf`, `lot_allocations` (jsonb) |
-| `account_mappings` | CryptoBook account key → bexio account | `key` (e.g. `crypto_asset:BTC`, `realized_gain`), `bexio_account_id`, `bexio_account_no` |
+| `account_mappings` | Crypto2Books account key → bexio account | `key` (e.g. `crypto_asset:BTC`, `realized_gain`), `bexio_account_id`, `bexio_account_no` |
 | `journal_entries` | Generated bookings | `run_id`, `transaction_id`, `date`, `reference_nr` (unique), `status` (`draft` \| `validated` \| `synced` \| `sync_failed` \| `superseded`), `validated_by`, `validated_at` |
 | `journal_lines` | Debit/credit pairs (CHF) | `entry_id`, `debit_key`, `credit_key`, `amount_chf`, `description` |
 | `bexio_connections` | OAuth link per organization | `encrypted_tokens`, `bexio_company_id`, `chf_currency_id`, `scopes`, `connected_at` |
@@ -270,7 +270,7 @@ Tenant isolation: every tenant table carries `org_id`; all queries go through he
 8. Reports (CSV/Excel): transactions, realised gains, holdings, journal.
 9. **bexio contract test** against a trial company (requires the owner's bexio developer app credentials) — the gate before calling the bexio sync "supported".
 
-**Phase 2 — Automation**: pg-boss jobs; Kraken and Coinbase API connectors (read-only); EVM and Bitcoin address imports; SNB fiat rates and ESTV Kursliste import; reconciliation report (CryptoBook vs bexio journal, `GET /3.0/accounting/journal`); evidence upload to bexio (`file` scope); TOTP MFA; PDF reports; row-level security.
+**Phase 2 — Automation**: pg-boss jobs; Kraken and Coinbase API connectors (read-only); EVM and Bitcoin address imports; SNB fiat rates and ESTV Kursliste import; reconciliation report (Crypto2Books vs bexio journal, `GET /3.0/accounting/journal`); evidence upload to bexio (`file` scope); TOTP MFA; PDF reports; row-level security.
 
 **Phase 3 — Fiduciary**: multi-client dashboard, invitations and per-client roles, bulk validation, bulk reporting, policy review sign-off.
 
