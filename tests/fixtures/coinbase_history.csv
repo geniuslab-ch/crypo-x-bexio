@@ -1,0 +1,8 @@
+"Transactions"
+"User","Test User","00000000-0000-0000-0000-000000000000"
+ID,Timestamp,Transaction Type,Asset,Quantity Transacted,Price Currency,Price at Transaction,Subtotal,Total (inclusive of fees and/or spread),Fees and/or Spread,Notes
+cb-1,2024-01-10 08:00:00 UTC,Buy,ETH,1.5,CHF,CHF2000.00,CHF3000.00,CHF3029.85,CHF29.85,Bought 1.5 ETH for CHF 3029.85
+cb-2,2024-02-10 08:00:00 UTC,Sell,ETH,0.5,CHF,CHF2500.00,CHF1250.00,CHF1237.50,CHF12.50,Sold 0.5 ETH for CHF 1237.50
+cb-3,2024-02-11 08:00:00 UTC,Convert,ETH,0.2,CHF,CHF2600.00,CHF520.00,CHF520.00,CHF0.00,Converted 0.2 ETH to 0.01 BTC
+cb-4,2024-02-12 08:00:00 UTC,Staking Income,ETH,0.001,CHF,CHF2600.00,CHF2.60,CHF2.60,CHF0.00,
+cb-5,2024-02-13 08:00:00 UTC,Mystery Thing,ETH,0.001,CHF,CHF2600.00,CHF2.60,CHF2.60,CHF0.00,
