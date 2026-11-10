@@ -86,6 +86,13 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
         </div>
       )}
 
+      {run?.status === 'complete' && !Array.isArray(run.roundingLedger) && issues.some((i) => i.code === 'not_bookable') && (
+        <div className="card stack">
+          <h2 style={{ margin: 0 }}>Reports d’arrondi par compte</h2>
+          <p className="small muted">Non disponible : au moins une écriture validée ne correspond plus au calcul (voir les points à résoudre). Passez la correction, puis relancez le calcul.</p>
+        </div>
+      )}
+
       <div className="grid grid-2">
         <form action={importRatesAction} className="card stack">
           <h2>{t('acc.rates')}</h2>

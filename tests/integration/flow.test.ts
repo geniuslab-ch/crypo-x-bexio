@@ -158,6 +158,19 @@ describe('import → classify → value → calculate → validate → bexio', (
     expect(run).toMatchObject({ created: 0, superseded: 0 });
   });
 
+  it('does not store a rounding ledger when a kept validated entry no longer matches the calculation', async () => {
+    // Earlier history imported late: a cheaper BTC lot changes the FIFO cost of the synced withdrawal.
+    const generic = await createSource(ctx, { provider: 'generic', label: 'Ancien wallet', kind: 'wallet' });
+    await importFile(ctx, { sourceId: generic, fileName: 'old.csv', content: [
+      'date,type,in_asset,in_quantity,out_asset,out_quantity,fee_asset,fee_quantity,external_id,tx_hash,chf_value,note',
+      '2023-12-01T10:00:00Z,buy,BTC,0.1,CHF,2000,,,old-001,,2000,',
+    ].join('\n') });
+    const run = await runCalculation(ctx);
+    expect(run.issues.map((i) => i.code)).toContain('not_bookable');
+    const { latestRun } = await import('@/server/services/calculation');
+    expect((await latestRun(ctx))!.roundingLedger).toBeNull();
+  });
+
   it('reports a definite bexio rejection as failed with the message', async () => {
     const [entry] = await db.select().from(journalEntries).limit(1);
     await db.update(journalEntries).set({ status: 'validated' }).where(eq(journalEntries.id, entry!.id));

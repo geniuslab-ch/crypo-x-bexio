@@ -111,6 +111,9 @@ export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status:
         .where(and(eq(journalEntries.orgId, ctx.orgId), ne(journalEntries.status, 'superseded')));
       const existingByTx = new Map(existing.map((e) => [e.transactionId, e]));
       const producedTx = new Set<string>();
+      // A kept validated entry that differs from the new result means the saved journal no longer matches this
+      // run's lines: the rounding ledger would then describe bookings that do not exist, so it is not stored.
+      let conflict = false;
       // Cumulative rounding per account across the whole history (see postingsToLines).
       const carry = new Map<string, Dec>();
       const exact = new Map<string, Dec>();
@@ -131,6 +134,7 @@ export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status:
           continue;
         }
         if (prev && prev.status !== 'draft') {
+          conflict = true;
           issues.push({ txId: r.txId, code: 'not_bookable', message: `Le nouveau résultat diffère de l’écriture validée ${prev.referenceNr}. Passez une correction explicite : une écriture validée n’est jamais modifiée automatiquement.` });
           continue;
         }
@@ -148,10 +152,11 @@ export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status:
           await db.update(journalEntries).set({ status: 'superseded' }).where(eq(journalEntries.id, e.id));
           superseded++;
         } else {
+          conflict = true;
           issues.push({ txId: e.transactionId, code: 'not_bookable', message: `L’écriture validée ${e.referenceNr} ne correspond plus au calcul. Passez une extourne explicite.` });
         }
       }
-      const roundingLedger = [...exact.keys()].sort().map((key) => {
+      const roundingLedger = conflict ? null : [...exact.keys()].sort().map((key) => {
         const e = exact.get(key)!;
         const b = booked.get(key) ?? new D(0);
         return { key, exactChf: e.toString(), bookedChf: b.toFixed(2), carriedChf: e.minus(b).toString() };
