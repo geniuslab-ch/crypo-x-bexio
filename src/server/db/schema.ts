@@ -173,6 +173,22 @@ export const priceRates = pgTable('price_rates', {
   createdAt: createdAt(),
 }, (t) => [uniqueIndex('price_rates_uq').on(t.orgId, t.asset, t.rateDate)]);
 
+/**
+ * Official tax values per asset and tax year (e.g. ESTV/AFC Kursliste ICTax, value at 31.12), entered or imported by
+ * the user. Kept apart from accounting price rates so that tax values never change bookings.
+ */
+export const taxValues = pgTable('tax_values', {
+  id: id(),
+  orgId: orgId(),
+  asset: text('asset').notNull(),
+  taxYear: integer('tax_year').notNull(),
+  valueChf: amt('value_chf').notNull(), // CHF per unit
+  source: text('source').notNull(),
+  sourceUrl: text('source_url'),
+  createdBy: uuid('created_by'),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex('tax_values_uq').on(t.orgId, t.asset, t.taxYear)]);
+
 // ---------- Calculation & journal ----------
 
 export const calculationRuns = pgTable('calculation_runs', {

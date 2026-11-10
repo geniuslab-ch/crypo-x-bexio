@@ -1,7 +1,8 @@
 import { D } from '@/core/decimal';
 import type { Movement, ParsedTransaction, ParseIssue } from '@/core/types';
 import { outOfTime, requestJson, splitAddresses } from './http';
-import { ConnectorError, type SourceConnector, type SyncState } from './types';
+import { ConnectorError, type FetchContext, type SourceConnector, type SyncState } from './types';
+import { addressTypesFor, deriveAddress, isExtendedPrivateKey, isExtendedPublicKey, parseExtendedKey, type AddressType } from './xpub';
 
 /**
  * Bitcoin public addresses through the mempool.space Esplora API (no key, read-only by nature).
@@ -10,15 +11,22 @@ import { ConnectorError, type SourceConnector, type SyncState } from './types';
  * - tx: txid, fee (sats), vin[].prevout {scriptpubkey_address, value}, vout[] {scriptpubkey_address, value},
  *   status {confirmed, block_time}. Amounts are in satoshis.
  * All addresses of the source are treated as the same wallet: payments between them net to a network fee.
- * xpub/descriptor import is not available through this API.
+ * - GET /api/address/:address -> chain_stats.tx_count, used to discover the addresses of an extended public key.
+ * Extended public keys (xpub/ypub/zpub) are expanded locally (see xpub.ts): receive and change chains are scanned
+ * until 20 consecutive unused addresses (BIP-44 gap limit).
  */
+const GAP_LIMIT = 20;
 const BASE = 'https://mempool.space/api';
 const SATS = new D(100_000_000);
 
 interface Out { scriptpubkey_address?: string; value: number }
 interface BtcTx { txid: string; fee: number; vin: { prevout?: Out | null }[]; vout: Out[]; status: { confirmed: boolean; block_time?: number | null } }
 
+interface ChainScan { next: number; gap: number; used: string[] }
+
 interface BtcState extends SyncState {
+  /** Discovery per extended key, address type and chain ("<key>|<type>|<chain>"). */
+  scan?: Record<string, ChainScan>;
   addrIndex?: number;
   lastSeen?: string | null;
   txs?: Record<string, BtcTx>;
@@ -70,6 +78,32 @@ export function mapBitcoin(addresses: string[], txs: BtcTx[]): { transactions: P
   return { transactions, issues };
 }
 
+function splitEntries(raw: string | undefined): { addresses: string[]; xpubs: string[] } {
+  const all = splitAddresses(raw);
+  return { addresses: all.filter((a) => !isExtendedPublicKey(a)), xpubs: all.filter(isExtendedPublicKey) };
+}
+
+function scanKeys(xpubs: string[]): { id: string; xpub: string; type: AddressType; chain: 0 | 1 }[] {
+  return xpubs.flatMap((xpub) => addressTypesFor(xpub).flatMap((type) => ([0, 1] as const).map((chain) => ({ id: `${xpub}|${type}|${chain}`, xpub, type, chain }))));
+}
+
+/** Discovers used addresses of the extended keys. Returns false when the run is out of time. */
+async function discover(xpubs: string[], st: BtcState, fx: FetchContext): Promise<boolean> {
+  for (const k of scanKeys(xpubs)) {
+    const key = parseExtendedKey(k.xpub);
+    const s = (st.scan![k.id] ??= { next: 0, gap: 0, used: [] });
+    while (s.gap < GAP_LIMIT) {
+      if (outOfTime(fx)) return false;
+      const addr = deriveAddress(key, k.type, k.chain, s.next);
+      const info = await requestJson<{ chain_stats: { tx_count: number } }>(fx, `${BASE}/address/${addr}`);
+      if (info.chain_stats.tx_count > 0) { if (!s.used.includes(addr)) s.used.push(addr); s.gap = 0; } else s.gap += 1;
+      s.next += 1;
+      await fx.sleep(200);
+    }
+  }
+  return true;
+}
+
 const ADDRESS = /^(bc1[02-9ac-hj-np-z]{8,87}|[13][1-9A-HJ-NP-Za-km-z]{25,39})$/;
 
 export const bitcoinConnector: SourceConnector = {
@@ -79,21 +113,32 @@ export const bitcoinConnector: SourceConnector = {
   label: 'Bitcoin — adresses publiques',
   kind: 'wallet',
   support: 'partial',
-  fields: [{ name: 'addresses', label: 'Adresses Bitcoin publiques (une par ligne)', secret: false, multiline: true, placeholder: 'bc1q…' }],
-  help: 'Copiez les adresses de réception de votre wallet (Ledger Live, Trezor Suite, BlueWallet…). Jamais de phrase de récupération ni de clé privée : elles ne sont pas nécessaires.',
-  limits: 'Adresses une par une : l’import par xpub n’est pas encore disponible. Les wallets qui changent d’adresse à chaque réception demandent toutes les adresses utilisées. Données via mempool.space.',
+  fields: [{ name: 'addresses', label: 'Clé publique étendue (xpub, ypub, zpub) ou adresses Bitcoin, une par ligne', secret: false, multiline: true, placeholder: 'zpub6r… ou bc1q…' }],
+  help: 'Le plus simple : la clé publique étendue du compte (Ledger Live : Compte → Modifier → Avancé ; Trezor Suite : Détails → Afficher la clé publique ; Sparrow/Electrum : Wallet → Informations). Toutes les adresses du wallet sont retrouvées automatiquement. Une xpub permet seulement de lire, jamais de dépenser. Jamais de phrase de récupération ni de clé privée (xprv).',
+  limits: 'Recherche des adresses jusqu’à 20 adresses inutilisées de suite (règle standard des wallets). Une « xpub » simple est lue dans les trois formats d’adresses (bc1q, 3…, 1…). Taproot (bc1p) et les multisig ne sont pas encore pris en charge. Données via mempool.space.',
   async verify(creds) {
     const list = splitAddresses(creds.addresses);
     if (list.length === 0) throw new ConnectorError('credentials_missing');
-    const bad = list.filter((a) => !ADDRESS.test(a));
+    if (list.some(isExtendedPrivateKey)) throw new ConnectorError('private_key_refused');
+    const bad = list.filter((a) => !ADDRESS.test(a) && !isExtendedPublicKey(a));
     if (bad.length) throw new ConnectorError('invalid_address', bad.slice(0, 3).join(', '));
+    for (const x of list.filter(isExtendedPublicKey)) {
+      try { parseExtendedKey(x); } catch { throw new ConnectorError('invalid_address', `${x.slice(0, 12)}…`); }
+    }
     if (list.length > 200) throw new ConnectorError('too_many_addresses');
     return { readOnly: 'verified' };
   },
   async sync(creds, raw, fx) {
     await bitcoinConnector.verify(creds, fx);
-    const addrs = splitAddresses(creds.addresses);
-    const st: BtcState = { txs: {}, addrIndex: 0, lastSeen: null, newestSeen: {}, passNewest: {}, ...(raw as BtcState) };
+    const { addresses, xpubs } = splitEntries(creds.addresses);
+    const st: BtcState = { scan: {}, txs: {}, addrIndex: 0, lastSeen: null, newestSeen: {}, passNewest: {}, ...(raw as BtcState) };
+    if (!(await discover(xpubs, st, fx))) {
+      const found = Object.values(st.scan!).reduce((n, s) => n + s.used.length, 0);
+      return { transactions: [], issues: [], evidence: null, complete: false, state: st,
+        progress: `Bitcoin : recherche des adresses du wallet, ${found} adresse(s) utilisée(s) trouvée(s) — relancez pour continuer.` };
+    }
+    const derived = Object.values(st.scan!).flatMap((s) => s.used);
+    const addrs = [...new Set([...addresses, ...derived])];
     while (st.addrIndex! < addrs.length) {
       if (outOfTime(fx)) {
         return { transactions: [], issues: [], evidence: null, complete: false, state: st,
@@ -117,8 +162,13 @@ export const bitcoinConnector: SourceConnector = {
     }
     const txs = Object.values(st.txs!);
     const mapped = mapBitcoin(addrs, txs);
-    return { ...mapped, evidence: { addresses: addrs, transactions: txs }, complete: true,
-      state: { newestSeen: { ...st.newestSeen, ...st.passNewest } },
+    // Next pass resumes discovery after the last address found, with a fresh gap window.
+    const scan = Object.fromEntries(Object.entries(st.scan!).map(([id, s]) => {
+      const lastUsed = s.next - s.gap - 1;
+      return [id, { next: lastUsed + 1, gap: 0, used: s.used }];
+    }));
+    return { ...mapped, evidence: { addresses: addrs, extendedKeys: xpubs.length, transactions: txs }, complete: true,
+      state: { newestSeen: { ...st.newestSeen, ...st.passNewest }, scan },
       progress: `Bitcoin : ${txs.length} transactions sur ${addrs.length} adresse(s).` };
   },
 };

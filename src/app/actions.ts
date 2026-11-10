@@ -17,7 +17,7 @@ import { markPolicyReviewed, runCalculation, setEntriesValidated, updatePolicy }
 import { reclassify, setManualClassification } from '@/server/services/classification';
 import { createSource, importFile } from '@/server/services/imports';
 import { removeConnection, saveConnection, syncSource } from '@/server/services/sync';
-import { importRates, revalue } from '@/server/services/valuation';
+import { importRates, importTaxValues, revalue } from '@/server/services/valuation';
 
 /** Error codes raised when the server cannot reach or log in to PostgreSQL (configuration problem, not user input). */
 const DB_UNAVAILABLE = new Set([
@@ -273,6 +273,23 @@ export async function importRatesAction(form: FormData) {
   }
   revalidatePath('/', 'layout');
   back('/accounting', 'ok', text);
+}
+
+export async function importTaxValuesAction(form: FormData) {
+  const { ctx } = await requireCtx();
+  const file = form.get('file');
+  const year = String(form.get('year') ?? '');
+  const to = `/reports${/^\d{4}$/.test(year) ? `?year=${year}` : ''}`;
+  if (!(file instanceof File) || file.size === 0) back(to, 'error', 'no_file');
+  let text = '';
+  try {
+    const r = await importTaxValues(ctx, await file.text(), form.get('replace') === 'on');
+    text = `tax_values_inserted:${r.inserted}|replaced:${r.replaced}|skipped:${r.skipped}|errors:${r.errors.length}`;
+  } catch (e) {
+    back(to, 'error', msg(e));
+  }
+  revalidatePath('/', 'layout');
+  back(to, 'ok', text);
 }
 
 export async function updatePolicyAction(form: FormData) {

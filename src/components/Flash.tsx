@@ -35,6 +35,7 @@ const MESSAGES: Record<string, string> = {
   api_key_cannot_read: 'Clé refusée : elle n’a pas le droit de lecture.',
   invalid_address: 'Adresse invalide. Vérifiez qu’il s’agit bien d’une adresse publique du bon réseau.',
   too_many_addresses: 'Trop d’adresses pour une seule source : créez plusieurs sources.',
+  private_key_refused: 'Clé privée refusée : donnez uniquement la clé publique (xpub, ypub, zpub) ou des adresses. Ne partagez jamais une clé privée ni une phrase de récupération.',
   etherscan_not_configured: 'Lecture Ethereum non configurée sur le serveur (variable ETHERSCAN_API_KEY).',
   rate_limited: 'La plateforme limite le nombre de requêtes : réessayez dans une minute.',
   provider_unreachable: 'Plateforme injoignable pour le moment : réessayez plus tard.',
@@ -51,7 +52,7 @@ const MESSAGES: Record<string, string> = {
 const LABELS: Record<string, string> = {
   imported: 'importées', duplicates: 'doublons', issues: 'lignes rejetées / problèmes', created: 'écritures créées', unchanged: 'inchangées',
   validated: 'validées', unvalidated: 'repassées en brouillon', synced: 'envoyées à bexio', failed: 'échecs', recovered: 'retrouvées dans bexio',
-  accounts: 'comptes chargés', years: 'exercices', rates_inserted: 'cours ajoutés', replaced: 'remplacés', skipped: 'ignorés (déjà présents)',
+  accounts: 'comptes chargés', years: 'exercices', rates_inserted: 'cours ajoutés', tax_values_inserted: 'valeurs fiscales ajoutées', replaced: 'remplacés', skipped: 'ignorés (déjà présents)',
   errors: 'erreurs', confirmed: 'confirmées',
 };
 

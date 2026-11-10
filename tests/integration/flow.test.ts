@@ -14,6 +14,7 @@ import { setManualClassification } from '@/server/services/classification';
 import { createSource, importFile } from '@/server/services/imports';
 import { importRates } from '@/server/services/valuation';
 import { fakeBexio, resetDatabase } from './helpers';
+import { D } from '@/core/decimal';
 
 const fixture = (f: string) => readFileSync(path.join(import.meta.dirname, '..', 'fixtures', f), 'utf8');
 
@@ -90,6 +91,24 @@ describe('import → classify → value → calculate → validate → bexio', (
     // Re-running with identical inputs changes nothing.
     const again = await runCalculation(ctx);
     expect(again).toMatchObject({ created: 0, unchanged: 4, superseded: 0 });
+  });
+
+  it('builds the statement of securities with official tax values when entered', async () => {
+    const { buildReport } = await import('@/server/services/reports');
+    const { importTaxValues } = await import('@/server/services/valuation');
+    const before = await buildReport(ctx, 'wealth', { year: 2024 });
+    const btc = before.rows.find((r) => r[0] === 'BTC');
+    expect(btc).toBeDefined();
+    expect(String(btc![4])).not.toMatch(/^Valeur fiscale/);
+    const r = await importTaxValues(ctx, ['asset,year,value_chf,source,source_url', 'BTC,2024,85000.5,Kursliste AFC 2024,https://www.ictax.admin.ch'].join('\n'));
+    expect(r).toMatchObject({ inserted: 1, errors: [] });
+    const after = await buildReport(ctx, 'wealth', { year: 2024 });
+    const row = after.rows.find((x) => x[0] === 'BTC')!;
+    expect(row[2]).toBe('85000.5');
+    expect(row[3]).toBe(new D(85000.5).times(String(row[1])).toFixed(2));
+    expect(row[4]).toBe('Valeur fiscale : Kursliste AFC 2024');
+    // An existing value is kept unless replacement is asked.
+    expect((await importTaxValues(ctx, 'asset,year,value_chf,source\nBTC,2024,1,x')).skipped).toBe(1);
   });
 
   it('syncs validated entries to bexio idempotently, recovering from an unknown outcome', async () => {

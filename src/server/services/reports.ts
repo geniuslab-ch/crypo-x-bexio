@@ -7,7 +7,7 @@ import { D, ZERO } from '@/core/decimal';
 import { INCOME_CLASSIFICATIONS, type Classification } from '@/core/types';
 import { rateTableLookup, zurichDate } from '@/core/valuation/rateTable';
 import type { Ctx } from '../context';
-import { accountMappings, calculationRuns, disposals, priceRates } from '../db/schema';
+import { accountMappings, calculationRuns, disposals, priceRates, taxValues } from '../db/schema';
 import { listEntries } from './calculation';
 import { effectiveClassification, loadTransactions, normalizeNumeric, toValuedMovement } from './transactions';
 
@@ -18,7 +18,7 @@ export interface Report {
   rows: (string | number | null)[][];
 }
 
-export const REPORT_TYPES = ['transactions', 'realized', 'holdings', 'journal', 'income', 'fees'] as const;
+export const REPORT_TYPES = ['transactions', 'realized', 'holdings', 'wealth', 'journal', 'income', 'fees'] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 
 const DISCLAIMER = 'Document de support comptable généré par Crypto2Books. Ne constitue pas un conseil fiscal; à valider par votre fiduciaire.';
@@ -75,6 +75,39 @@ export async function buildReport(ctx: Ctx, type: ReportType, opts: { year: numb
       title: 'Gains et pertes réalisés',
       meta: baseMeta(ctx, [['Année', yearLabel], ['Calcul', run.id], ['Méthode', policy.method.toUpperCase()], ['Frais de trading', policy.tradingFeeTreatment], ['Empreinte des données', run.inputHash]]),
       columns: ['Date (UTC)', 'Actif', 'Nature', 'Quantité', 'Produit CHF', 'Coût CHF', 'Résultat CHF', 'Transaction'],
+      rows,
+    };
+  }
+
+  if (type === 'wealth') {
+    // Statement of securities (état des titres): holdings at 31.12 at the official tax value when entered.
+    const year = opts.year ?? new Date().getFullYear() - 1;
+    const holdings = await buildReport(ctx, 'holdings', { year, valuationDate: `${year}-12-31` });
+    const official = new Map((await ctx.db.select().from(taxValues).where(and(eq(taxValues.orgId, ctx.orgId), eq(taxValues.taxYear, year))))
+      .map((v) => [v.asset, v]));
+    const rows: Report['rows'] = [];
+    let total = ZERO;
+    let missing = 0;
+    let unofficial = 0;
+    for (const r of holdings.rows) {
+      const [asset, quantity, , marketRate] = r as [string, string, string, string | null];
+      if (asset === 'TOTAL') continue;
+      const tv = official.get(asset);
+      const rate = tv ? normalizeNumeric(tv.valueChf) : marketRate;
+      const value = rate ? new D(rate).times(quantity) : null;
+      if (value) total = total.plus(value); else missing++;
+      if (!tv && rate) unofficial++;
+      rows.push([asset, quantity, rate, value ? value.toFixed(2) : null,
+        tv ? `Valeur fiscale : ${tv.source}` : rate ? 'Cours de marché, NON officiel : saisissez la valeur de la Kursliste AFC' : 'Aucune valeur',
+        tv?.sourceUrl ?? null]);
+    }
+    rows.push(['TOTAL', '', '', missing ? 'incomplet' : total.toFixed(2), unofficial ? `${unofficial} valeur(s) non officielle(s)` : '', '']);
+    return {
+      title: `État des titres crypto au 31.12.${year} (aide à la déclaration)`,
+      meta: baseMeta(ctx, [['Année fiscale', String(year)],
+        ['Valeurs fiscales officielles', `${official.size} saisie(s)`],
+        ['Note', 'Valeurs fiscales au 31.12 selon la Kursliste de l’AFC (ictax.admin.ch) lorsqu’elles sont saisies ; sinon cours de marché à remplacer. Les revenus de staking de l’année figurent dans le rapport « Staking et autres revenus ». Ce document aide à remplir la déclaration ; il ne la remplace pas.']]),
+      columns: ['Actif', 'Quantité au 31.12', 'Valeur unitaire CHF', 'Valeur fiscale CHF', 'Source de la valeur', 'Référence'],
       rows,
     };
   }

@@ -138,10 +138,12 @@ export function classifyTransactions(
     const useHint = hint && (hint.confidence >= s.conf || s.c === 'deposit' || s.c === 'withdrawal' || s.c === 'unknown');
     const c = useHint ? hint.classification : s.c;
     const conf = useHint ? hint.confidence : s.conf;
-    const reasons = useHint ? [hint.reason] : [s.reason];
+    const hasNft = tx.movements.some((m) => m.asset.startsWith('NFT.'));
+    const reasons = [useHint ? hint.reason : s.reason, ...(hasNft && !useHint ? ['NFT : pas de cours de marché, valeur à vérifier'] : [])];
     results.set(tx.id, {
       id: tx.id, classification: c, confidence: conf, origin: useHint ? 'source_hint' : 'structure', reasons,
-      needsReview: conf < REVIEW_THRESHOLD,
+      // NFTs have no market price feed: their value always needs a human check.
+      needsReview: conf < REVIEW_THRESHOLD || hasNft,
     });
   }
 

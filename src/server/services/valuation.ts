@@ -7,7 +7,7 @@ import { valueTransaction } from '@/core/valuation/value';
 import { coingeckoConfigured, fetchCoinGeckoChfRate } from '@/integrations/prices/coingecko';
 import { audit } from '../audit';
 import { AppError, assertCanWrite, type Ctx } from '../context';
-import { movements, priceRates, transactions } from '../db/schema';
+import { movements, priceRates, taxValues, transactions } from '../db/schema';
 import { effectiveClassification, loadTransactions, lockedTransactionIds, normalizeNumeric, toMovement } from './transactions';
 
 async function loadRates(ctx: Ctx): Promise<StoredRate[]> {
@@ -120,6 +120,48 @@ export async function importRates(ctx: Ctx, csv: string, replace = false): Promi
   }
   if (inserted + replaced > 0) {
     await audit(ctx.db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'rates.imported', entity: 'price_rates', after: { inserted, replaced } });
+  }
+  if (inserted + replaced + skipped === 0 && errors.length === 0) throw new AppError('invalid', 'empty_file');
+  return { inserted, replaced, skipped, errors };
+}
+
+/**
+ * Imports official tax values (CSV: asset, year, value_chf, source[, source_url]), e.g. copied from the ESTV/AFC
+ * Kursliste ICTax. Existing values are only replaced when asked, with an audit entry.
+ */
+export async function importTaxValues(ctx: Ctx, csv: string, replace = false): Promise<{ inserted: number; replaced: number; skipped: number; errors: string[] }> {
+  assertCanWrite(ctx);
+  const parsed = Papa.parse<Record<string, string>>(csv.replace(/^﻿/, ''), { header: true, skipEmptyLines: true, transformHeader: (h) => h.trim().toLowerCase() });
+  const errors: string[] = [];
+  let inserted = 0;
+  let replaced = 0;
+  let skipped = 0;
+  for (const [i, row] of parsed.data.entries()) {
+    const line = i + 2;
+    const asset = (row.asset ?? '').trim().toUpperCase();
+    const year = Number((row.year ?? '').trim());
+    const value = parseAmount(row.value_chf);
+    const source = (row.source ?? '').trim();
+    if (!asset || !Number.isInteger(year) || year < 2009 || year > 2100 || !value || !value.isPositive() || !source) {
+      errors.push(`Ligne ${line} : asset, year (AAAA), value_chf positif et source sont obligatoires`);
+      continue;
+    }
+    const [existing] = await ctx.db.select().from(taxValues)
+      .where(and(eq(taxValues.orgId, ctx.orgId), eq(taxValues.asset, asset), eq(taxValues.taxYear, year)));
+    if (existing) {
+      if (!replace || normalizeNumeric(existing.valueChf) === value.toString()) { skipped++; continue; }
+      await ctx.db.update(taxValues).set({ valueChf: value.toString(), source, sourceUrl: row.source_url?.trim() || null, createdBy: ctx.userId })
+        .where(eq(taxValues.id, existing.id));
+      await audit(ctx.db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'tax_value.replaced', entity: 'tax_value', entityId: existing.id,
+        before: { value: existing.valueChf, source: existing.source }, after: { value: value.toString(), source } });
+      replaced++;
+      continue;
+    }
+    await ctx.db.insert(taxValues).values({ orgId: ctx.orgId, asset, taxYear: year, valueChf: value.toString(), source, sourceUrl: row.source_url?.trim() || null, createdBy: ctx.userId });
+    inserted++;
+  }
+  if (inserted + replaced > 0) {
+    await audit(ctx.db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'tax_values.imported', entity: 'tax_values', after: { inserted, replaced } });
   }
   if (inserted + replaced + skipped === 0 && errors.length === 0) throw new AppError('invalid', 'empty_file');
   return { inserted, replaced, skipped, errors };

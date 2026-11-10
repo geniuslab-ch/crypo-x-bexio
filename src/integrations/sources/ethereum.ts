@@ -11,6 +11,10 @@ import { ConnectorError, type FetchContext, type SourceConnector, type SyncState
  * - txlist: hash, timeStamp (s), from, to, value (wei), gasPrice, gasUsed, isError, blockNumber
  * - tokentx: hash, timeStamp, from, to, value (smallest unit), contractAddress, tokenSymbol, tokenDecimal
  * - action=txlistinternal (ETH sent by contracts, e.g. exchange withdrawals) uses the same fields as txlist.
+ * - action=tokennfttx (ERC-721): contractAddress, tokenID, tokenName, tokenSymbol; one NFT per transfer.
+ * - action=token1155tx (ERC-1155): contractAddress, tokenID, tokenValue (number of tokens of that id).
+ * NFTs are named NFT.<contract prefix>#<tokenID>. Transactions mixing several assets (swaps, pools, loans) get a
+ * hint, never an automatic validation.
  * Token symbols can be faked by spam contracts, so only a short list of well-known contracts keeps its plain
  * symbol; any other token is named SYMBOL.<contract prefix> and sent to review.
  */
@@ -39,18 +43,21 @@ export const KNOWN_TOKENS: Record<string, string> = {
 
 interface EthTx { hash: string; timeStamp: string; from: string; to: string; value: string; gasPrice?: string; gasUsed?: string; isError?: string; blockNumber: string }
 interface TokenTx extends EthTx { contractAddress: string; tokenSymbol: string; tokenDecimal: string }
+interface NftTx extends EthTx { contractAddress: string; tokenID: string; tokenSymbol?: string; tokenName?: string; tokenValue?: string }
 interface EsResponse<T> { status: string; message: string; result: T[] | string }
-type Action = 'txlist' | 'txlistinternal' | 'tokentx';
-const ACTIONS: Action[] = ['txlist', 'txlistinternal', 'tokentx'];
+type Action = 'txlist' | 'txlistinternal' | 'tokentx' | 'tokennfttx' | 'token1155tx';
+const ACTIONS: Action[] = ['txlist', 'txlistinternal', 'tokentx', 'tokennfttx', 'token1155tx'];
 
 interface EthState extends SyncState {
   addrIndex?: number;
   actionIndex?: number;
   startBlock?: number;
-  records?: Record<string, (EthTx | TokenTx) & { kind: Action }>;
+  records?: Record<string, EthRecord>;
   /** Next start block per address and action for the following pass. */
   nextBlock?: Record<string, number>;
 }
+
+type EthRecord = (EthTx | TokenTx | NftTx) & { kind: Action };
 
 async function call<T>(fx: FetchContext, params: Record<string, string>): Promise<T[]> {
   const key = fx.env.ETHERSCAN_API_KEY;
@@ -72,9 +79,14 @@ function tokenAsset(t: TokenTx): { asset: string; known: boolean } {
   return { asset: `${sym}.${c.slice(2, 8)}`, known: false };
 }
 
-export function mapEthereum(addresses: string[], records: ((EthTx | TokenTx) & { kind: Action })[]): { transactions: ParsedTransaction[]; issues: ParseIssue[] } {
+export function nftAsset(t: NftTx): string {
+  const id = String(t.tokenID ?? '').replace(/[^0-9a-zA-Z]/g, '').slice(0, 24) || '0';
+  return `NFT.${t.contractAddress.toLowerCase().slice(2, 8)}#${id}`;
+}
+
+export function mapEthereum(addresses: string[], records: EthRecord[]): { transactions: ParsedTransaction[]; issues: ParseIssue[] } {
   const own = new Set(addresses.map((a) => a.toLowerCase()));
-  const byHash = new Map<string, ((EthTx | TokenTx) & { kind: Action })[]>();
+  const byHash = new Map<string, EthRecord[]>();
   for (const r of records) byHash.set(r.hash, [...(byHash.get(r.hash) ?? []), r]);
   const transactions: ParsedTransaction[] = [];
   const issues: ParseIssue[] = [];
@@ -86,10 +98,18 @@ export function mapEthereum(addresses: string[], records: ((EthTx | TokenTx) & {
     let fee = new D(0);
     let unknownToken = false;
     let failed = false;
+    let nft = false;
     for (const r of rs) {
       const from = r.from.toLowerCase();
       const to = (r.to ?? '').toLowerCase();
-      if (r.kind === 'tokentx') {
+      if (r.kind === 'tokennfttx' || r.kind === 'token1155tx') {
+        const t = r as NftTx;
+        const q = new D(r.kind === 'token1155tx' ? (t.tokenValue || '0') : 1);
+        const asset = nftAsset(t);
+        nft = true;
+        if (own.has(to)) add(asset, q);
+        if (own.has(from)) add(asset, q.neg());
+      } else if (r.kind === 'tokentx') {
         const t = r as TokenTx;
         const dec = Number(t.tokenDecimal);
         if (!Number.isInteger(dec) || dec < 0 || dec > 36) { issues.push({ rowNumber: idx, message: `Jeton ${t.contractAddress} : décimales illisibles` }); continue; }
@@ -113,14 +133,19 @@ export function mapEthereum(addresses: string[], records: ((EthTx | TokenTx) & {
     if (fee.gt(0)) movements.push({ direction: 'fee', asset: 'ETH', quantity: fee.toString() });
     if (movements.length === 0) continue;
     const onlyFee = movements.every((m) => m.direction === 'fee');
+    const ins = movements.filter((m) => m.direction === 'in').length;
+    const outs = movements.filter((m) => m.direction === 'out').length;
     const ts = Math.min(...rs.map((r) => Number(r.timeStamp)));
     transactions.push({
       externalId: hash, txHash: hash, occurredAt: new Date(ts * 1000),
       rawType: [...new Set(rs.map((r) => r.kind))].join('+') + (failed ? ':failed' : ''), movements,
       raw: rs.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !['input', 'logs'].includes(k)).map(([k, v]) => [k, String(v ?? '')]))),
       rowNumbers: [idx],
-      hint: unknownToken
+      hint: nft
+        ? { classification: 'unknown', confidence: 0.3, reason: ins && outs ? 'NFT acheté ou vendu : prix à vérifier' : 'Transfert de NFT : achat, vente, cadeau ou spam, à vérifier' }
+        : unknownToken
         ? { classification: 'unknown', confidence: 0.2, reason: 'Jeton non reconnu (souvent du spam envoyé gratuitement) : à vérifier' }
+        : ins + outs > 2 ? { classification: 'unknown', confidence: 0.3, reason: 'Plusieurs actifs dans la même transaction : pool de liquidité, prêt ou swap complexe, à vérifier' }
         : failed && onlyFee ? { classification: 'network_fee', confidence: 0.95, reason: 'Transaction échouée : seuls les frais de gas ont été payés' }
           : onlyFee ? { classification: 'network_fee', confidence: 0.7, reason: 'Interaction de contrat sans mouvement de vos actifs : frais de gas' } : null,
       note: rs.some((r) => r.kind !== 'tokentx' && r.to === '') ? 'Création de contrat' : null,
@@ -139,7 +164,7 @@ export const ethereumConnector: SourceConnector = {
   support: 'partial',
   fields: [{ name: 'addresses', label: 'Adresses Ethereum publiques 0x… (une par ligne)', secret: false, multiline: true, placeholder: '0x…' }],
   help: 'Copiez l’adresse publique de votre wallet (MetaMask, Ledger, Trezor, Rabby…). Jamais de phrase de récupération ni de clé privée.',
-  limits: 'Réseau Ethereum principal : ETH, jetons ERC-20 et ETH reçus de contrats. Pas encore : NFT, autres réseaux (Arbitrum, Base, Polygon…) ni interprétation DeFi (swaps, pools) : ces opérations arrivent en revue.',
+  limits: 'Réseau Ethereum principal : ETH, jetons ERC-20, NFT (ERC-721 et ERC-1155) et ETH reçus de contrats. Les swaps DeFi sont proposés comme échanges ; pools, prêts et NFT arrivent en revue pour validation. Pas encore : autres réseaux (Arbitrum, Base, Polygon…).',
   async verify(creds, fx) {
     const list = splitAddresses(creds.addresses);
     if (list.length === 0) throw new ConnectorError('credentials_missing');
@@ -162,7 +187,7 @@ export const ethereumConnector: SourceConnector = {
       }
       const key = `${a}:${action}`;
       const start = st.startBlock ?? st.nextBlock![key] ?? 0;
-      const rows = await call<EthTx | TokenTx>(fx, { action, address: a, startblock: String(start), endblock: '999999999' });
+      const rows = await call<EthTx | TokenTx | NftTx>(fx, { action, address: a, startblock: String(start), endblock: '999999999' });
       for (const r of rows) {
         const logIndex = (r as { logIndex?: string }).logIndex ?? (r as { traceId?: string }).traceId ?? '';
         st.records![`${action}:${r.hash}:${logIndex}:${r.from}:${r.to}:${r.value}`] = { ...r, kind: action };
