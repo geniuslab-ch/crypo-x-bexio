@@ -44,6 +44,7 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
           <label>{t('src.label')}<input name="label" required maxLength={120} placeholder="Kraken – compte société" /></label>
           <label>Type<select name="kind"><option value="exchange">{t('src.kind.exchange')}</option><option value="wallet">{t('src.kind.wallet')}</option></select></label>
           <button className="btn" type="submit">{t('src.add')}</button>
+          <p className="small muted">Kraken, Coinbase, Binance et les wallets : ajoutez d’abord la source ici, puis collez la clé API (ou les adresses) dans sa carte sous « Vos sources », plus bas sur cette page.</p>
         </form>
       </div>
 
@@ -73,7 +74,7 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
                     <form action={disconnectSourceAction}><input type="hidden" name="sourceId" value={s.id} /><button className="btn" type="submit">Déconnecter</button></form>
                   </div>
                 ) : c ? (
-                  <details className="source-connect">
+                  <details className="source-connect" open>
                     <summary>{c.kind === 'wallet' ? 'Ajouter les adresses publiques' : 'Connecter par API (lecture seule)'}</summary>
                     <form action={connectSourceAction} className="stack" style={{ marginTop: 10 }}>
                       <input type="hidden" name="sourceId" value={s.id} />
