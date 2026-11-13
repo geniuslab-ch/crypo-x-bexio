@@ -39,6 +39,21 @@ describe('per-wallet accounts', () => {
     expect(r.holdings.get('OGY')!.quantity.toString()).toBe('800');
   });
 
+  it('moves only what arrives; the gap is the fee, taken once from the sending wallet', () => {
+    const r = runAccounting([
+      tx('buy', [mv('in', 'OGY', '100', '100'), mv('out', 'CHF', '100', '100')], 1, { wallet: 'a' }),
+      // 100 sent, 99 received: the matcher adds the 1-unit gap as a derived fee on the withdrawal.
+      tx('internal_transfer', [mv('out', 'OGY', '100', '100'), mv('fee', 'OGY', '1', '1')], 2, { wallet: 'a', transferTo: { wallet: 'b', receivedQuantity: '99' } }),
+      tx('internal_transfer', [mv('in', 'OGY', '99', '99')], 2, { wallet: 'b' }),
+      tx('sell', [mv('out', 'OGY', '99', '99'), mv('in', 'CHF', '99', '99')], 3, { wallet: 'b' }),
+    ], FIFO);
+    expect(r.issues).toEqual([]);
+    expect(sum(r.results[1]!.postings, 'crypto_asset:OGY@b')).toBe('99');
+    // 99 moved + 1 fee = the whole 100 leaves wallet a; nothing is left anywhere.
+    expect(sum(r.results[1]!.postings, 'crypto_asset:OGY@a')).toBe('-100');
+    expect(r.holdings.get('OGY')!.quantity.toString()).toBe('0');
+  });
+
   it('blocks a transfer from a wallet that does not hold the units', () => {
     const r = runAccounting([
       tx('buy', [mv('in', 'ICP', '10', '50'), mv('out', 'CHF', '50', '50')], 1, { wallet: null }),

@@ -194,7 +194,10 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
           txBlocked = true;
           continue;
         }
-        const qty = new D(m.quantity);
+        // Only what arrives is moved. The rest of the sent quantity is the transfer fee (recorded by the source or
+        // derived from the gap), which is disposed from the sending wallet with the other fee legs below.
+        const sent = new D(m.quantity);
+        const qty = D.min(new D(tx.transferTo.receivedQuantity), sent);
         const from = pool(m.asset, tx.wallet);
         const moved = takeLots(from, qty);
         if (!moved) {
@@ -204,12 +207,10 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
           txBlocked = true;
           continue;
         }
-        const ratio = new D(tx.transferTo.receivedQuantity).div(qty);
         const to = pool(m.asset, tx.transferTo.wallet);
         let cost = ZERO;
         for (const part of moved) {
-          const q = part.quantity.times(ratio);
-          addLot(to, { lotId: `${part.lotId}>${tx.id}`, asset: m.asset, acquiredAt: part.acquiredAt, quantity: q, remaining: q, cost: part.cost, remainingCost: part.cost }, policy.method);
+          addLot(to, { lotId: `${part.lotId}>${tx.id}`, asset: m.asset, acquiredAt: part.acquiredAt, quantity: part.quantity, remaining: part.quantity, cost: part.cost, remainingCost: part.cost }, policy.method);
           cost = cost.plus(part.cost);
         }
         postings.push({ key: cryptoAssetKey(m.asset, tx.transferTo.wallet), amount: cost });
