@@ -13,6 +13,7 @@ const MESSAGES: Record<string, string> = {
   no_file: 'Choisissez un fichier.',
   file_too_large: 'Fichier trop volumineux (10 Mo maximum).',
   transaction_locked_by_validated_entry: 'Transaction verrouillée : elle appartient à une écriture validée.',
+  wallet_accounts_locked_by_validated_entries: 'Des écritures sont déjà validées : un wallet ne peut plus recevoir ou perdre son propre compte. Seul le numéro de compte peut encore changer.',
   policy_locked_by_validated_entries: 'La méthode ne peut plus être modifiée : des écritures sont déjà validées.',
   bexio_not_configured: 'Connexion bexio non configurée sur ce serveur (BEXIO_CLIENT_ID, BEXIO_CLIENT_SECRET, APP_URL).',
   bexio_not_connected: 'Connectez d’abord votre compte bexio.',

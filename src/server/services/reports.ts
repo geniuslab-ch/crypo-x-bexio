@@ -11,7 +11,7 @@ import type { Ctx } from '../context';
 import { accountMappings, calculationRuns, disposals, priceRates, taxValues } from '../db/schema';
 import { listEntries } from './calculation';
 import { getOrgProfile } from './organization';
-import { effectiveClassification, loadTransactions, normalizeNumeric, toValuedMovement } from './transactions';
+import { effectiveClassification, loadTransactions, normalizeNumeric, toEngineInput, toValuedMovement, walletAccountSources } from './transactions';
 
 export interface Report {
   title: string;
@@ -133,8 +133,7 @@ export async function buildReport(ctx: Ctx, type: ReportType, opts: { year: numb
     const loaded = (await loadTransactions(ctx)).filter((l) => l.tx.occurredAt <= cutoff);
     const policyRow = (await latestCompleteRun(ctx))?.policySnapshot as AccountingPolicy | undefined;
     const policy: AccountingPolicy = policyRow ?? { method: 'fifo', tradingFeeTreatment: 'capitalize' };
-    const engine = runAccounting(loaded.filter((l) => l.tx.reviewStatus === 'ok' || l.tx.manualClassification)
-      .map((l) => ({ id: l.tx.id, occurredAt: l.tx.occurredAt, classification: effectiveClassification(l.tx) as Classification, movements: l.movements.map(toValuedMovement) })), policy);
+    const engine = runAccounting(toEngineInput(loaded.filter((l) => l.tx.reviewStatus === 'ok' || l.tx.manualClassification), await walletAccountSources(ctx)), policy);
     const rates = (await ctx.db.select().from(priceRates).where(eq(priceRates.orgId, ctx.orgId)))
       .map((r) => ({ asset: r.asset, rateDate: r.rateDate, rate: normalizeNumeric(r.rate), source: r.source, sourceUrl: r.sourceUrl }));
     const lookup = rateTableLookup(rates);

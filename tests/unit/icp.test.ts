@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { icpConnector, mapIcp } from '@/integrations/sources/icp';
+import { accountIdOfPrincipal, icpConnector, mapIcp } from '@/integrations/sources/icp';
 import type { FetchContext } from '@/integrations/sources/types';
 
 const ME = 'b6d226cf41e36807f656193fc9c7332ab38c1c9cd262d24ab6416a587bd49c0d';
@@ -38,5 +38,11 @@ describe('Internet Computer', () => {
     expect(urls[1]).toContain('/ledgers/lkwrt-vyaaa-aaaaq-aadhq-cai/accounts/');
     expect(r.transactions).toHaveLength(1);
     await expect(icpConnector.verify({ addresses: 'not-an-address' }, fx)).rejects.toThrow('invalid_address');
+    // A principal is also read on the ICP ledger through its default Account ID.
+    expect(urls).toContain(`https://ledger-api.internetcomputer.org/accounts/${accountIdOfPrincipal(P)}/transactions?limit=100&offset=0`);
+  });
+
+  it('derives the default Account ID of a principal (ICP ledger spec vector)', () => {
+    expect(accountIdOfPrincipal('2vxsx-fae')).toBe('1c7a48ba6a562aa9eaa2481a9049cdf0433b9738c992d698c31d8abf89cadc79');
   });
 });

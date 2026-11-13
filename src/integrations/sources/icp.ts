@@ -1,3 +1,6 @@
+import { sha224 } from '@noble/hashes/sha2.js';
+import { bytesToHex } from '@noble/hashes/utils.js';
+import { base32nopad } from '@scure/base';
 import { D } from '@/core/decimal';
 import type { Movement, ParsedTransaction, ParseIssue } from '@/core/types';
 import { outOfTime, requestJson, splitAddresses } from './http';
@@ -37,8 +40,37 @@ interface IcpState extends SyncState {
 const ACCOUNT_ID = /^[0-9a-f]{64}$/;
 const PRINCIPAL = /^[a-z0-9]{5}(-[a-z0-9]{5}){3,9}(-[a-z0-9]{1,5})?$/;
 
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (const b of bytes) {
+    let c = (crc ^ b) & 0xff;
+    for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1;
+    crc = (crc >>> 8) ^ c;
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+/**
+ * ICP Account ID of a principal's default subaccount (ICP ledger spec): crc32(h) || h,
+ * h = sha224(0x0A || "account-id" || principal bytes || 32 zero bytes).
+ */
+export function accountIdOfPrincipal(principal: string): string {
+  const raw = base32nopad.decode(principal.replace(/-/g, '').toUpperCase());
+  const h = sha224(new Uint8Array([0x0a, ...new TextEncoder().encode('account-id'), ...raw.slice(4), ...new Uint8Array(32)]));
+  const c = crc32(h);
+  return bytesToHex(new Uint8Array([c >>> 24, (c >>> 16) & 255, (c >>> 8) & 255, c & 255, ...h]));
+}
+
+/** A Principal is read on the OGY ledger and, through its default Account ID, on the ICP ledger. */
 function targets(raw: string | undefined): Target[] {
-  return splitAddresses(raw).map((a) => (ACCOUNT_ID.test(a.toLowerCase()) ? { kind: 'icp' as const, id: a.toLowerCase() } : { kind: 'ogy' as const, id: a }));
+  const out: Target[] = [];
+  const seen = new Set<string>();
+  const add = (t: Target) => { if (!seen.has(`${t.kind}:${t.id}`)) { seen.add(`${t.kind}:${t.id}`); out.push(t); } };
+  for (const a of splitAddresses(raw)) {
+    if (ACCOUNT_ID.test(a.toLowerCase())) add({ kind: 'icp', id: a.toLowerCase() });
+    else { add({ kind: 'ogy', id: a }); add({ kind: 'icp', id: accountIdOfPrincipal(a) }); }
+  }
+  return out;
 }
 
 const units = (v: string | null | undefined) => new D(v || '0').div(E8S);
@@ -95,9 +127,9 @@ export const icpConnector: SourceConnector = {
   label: 'Internet Computer — ICP et OGY',
   kind: 'wallet',
   support: 'partial',
-  fields: [{ name: 'addresses', label: 'Account ID ICP (64 caractères) et/ou Principal ID pour OGY, un par ligne', secret: false, multiline: true, placeholder: 'd3e1… ou abcde-…-cai' }],
-  help: 'Dans l’app NNS (ou Plug, Oisy) : « Account ID » du compte ICP, et « Principal ID » pour le jeton OGY. Ajoutez aussi les comptes des neurones si vous les avez. Jamais de phrase de récupération.',
-  limits: 'Lit les mouvements ICP et OGY. Les récompenses NNS sont reconnues quand la maturité est versée sur un compte (création de jetons) et passent en revue. Le blocage d’ICP dans un neurone apparaît comme un envoi : confirmez-le comme transfert interne. Les autres jetons ICRC ne sont pas encore lus. Données : tableau de bord officiel ICP.',
+  fields: [{ name: 'addresses', label: 'Principal ID (lit OGY et ICP) et/ou Account ID ICP (64 caractères), un par ligne', secret: false, multiline: true, placeholder: 'd3e1… ou abcde-…-cai' }],
+  help: 'ICP et OGY sont deux registres différents : un Principal ID (xxxxx-xxxxx-…-cai) est lu sur les deux (OGY directement, ICP via son Account ID par défaut). Un Account ID de 64 caractères ne sert que pour ICP (par exemple un compte NNS ou un sous-compte). Un wallet par ligne, ou une source par wallet si chacun a son compte bexio. Jamais de phrase de récupération.',
+  limits: 'Lit les mouvements ICP et OGY. Les récompenses NNS sont reconnues quand la maturité est versée sur un compte (création de jetons) et passent en revue. Le blocage d’ICP dans un neurone apparaît comme un envoi : confirmez-le comme transfert interne. Les sous-comptes OGY d’un Principal sont regroupés ; pour les ICP d’un sous-compte, ajoutez son Account ID. Les autres jetons ICRC ne sont pas encore lus. Données : tableau de bord officiel ICP.',
   async verify(creds) {
     const list = splitAddresses(creds.addresses);
     if (list.length === 0) throw new ConnectorError('credentials_missing');
