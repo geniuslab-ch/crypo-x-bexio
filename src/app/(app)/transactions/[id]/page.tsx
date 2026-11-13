@@ -4,16 +4,19 @@ import { and, eq } from 'drizzle-orm';
 import { classifyAction } from '@/app/actions';
 import { Flash } from '@/components/Flash';
 import { Money, StatusBadge } from '@/components/ui';
+import { classificationAllowed } from '@/core/legalForms';
 import { CLASSIFICATIONS } from '@/core/types';
 import { getI18n } from '@/i18n/server';
 import { requireCtx } from '@/server/auth/next';
 import { auditLog, journalEntries } from '@/server/db/schema';
+import { getOrgProfile } from '@/server/services/organization';
 import { effectiveClassification, loadTransactions, lockedTransactionIds, normalizeNumeric } from '@/server/services/transactions';
 
 export default async function TxDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
   const { id } = await params;
   const sp = await searchParams;
   const { ctx } = await requireCtx();
+  const { kind } = await getOrgProfile(ctx);
   const { t, cls, date } = await getI18n();
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const [l] = await loadTransactions(ctx, [id]);
@@ -58,7 +61,7 @@ export default async function TxDetail({ params, searchParams }: { params: Promi
             <form action={classifyAction} className="stack">
               <input type="hidden" name="txId" value={id} />
               <select name="classification" defaultValue={current}>
-                {CLASSIFICATIONS.map((c) => <option key={c} value={c}>{cls(c)}</option>)}
+                {CLASSIFICATIONS.filter((c) => classificationAllowed(kind, c) || c === current).map((c) => <option key={c} value={c}>{cls(c)}</option>)}
               </select>
               <label className="inline"><input type="checkbox" name="remember" /> {t('tx.remember')} (<span className="mono">{l.tx.rawType}</span>)</label>
               <div className="row">

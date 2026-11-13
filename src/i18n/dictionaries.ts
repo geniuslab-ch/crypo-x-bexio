@@ -21,6 +21,9 @@ const fr = {
   'auth.kind.company': 'Société (SA, Sàrl)',
   'auth.kind.sole_trader': 'Indépendant·e',
   'auth.kind.private': 'Investisseur privé',
+  'auth.kind.sa': 'Société anonyme (SA)',
+  'auth.kind.sarl': 'Société à responsabilité limitée (Sàrl)',
+  'auth.kind.foundation': 'Fondation',
   'auth.canton': 'Canton (ex. VD)',
   'auth.noAccount': 'Pas encore de compte ?',
   'auth.haveAccount': 'Déjà un compte ?',
@@ -178,6 +181,13 @@ const fr = {
   'set.policyLocked': 'La méthode ne peut plus être modifiée car des écritures sont validées.',
   'set.window': 'Fenêtre de rapprochement des transferts (heures)',
   'set.markReviewed': 'Marquer comme validée (fiduciaire)',
+  'set.legal': 'Forme juridique et statut fiscal',
+  'set.taxStatus': 'Statut fiscal (impôts directs)',
+  'set.tax.ordinary': 'Imposée normalement',
+  'set.tax.exempt': 'Exonérée (utilité publique, LIFD art. 56 let. g)',
+  'set.tax.partial': 'Partiellement exonérée',
+  'set.legalHelp': 'Les achats, ventes, valorisations et gains réalisés se comptabilisent de la même façon pour une SA, une Sàrl et une fondation (CO art. 957 ss, CC art. 83a). La forme juridique change les classifications proposées (dotation, don, subvention versée) et les notes fiscales des rapports. Le statut fiscal suit la décision de l’administration cantonale.',
+  'rep.donations': 'Dons, dotations et subventions versées',
 } as const;
 
 export type MessageKey = keyof typeof fr;
@@ -190,7 +200,8 @@ const en: Dict = {
   'nav.settings': 'Settings', 'nav.logout': 'Log out',
   'auth.login': 'Log in', 'auth.register': 'Create account', 'auth.email': 'Email', 'auth.password': 'Password', 'auth.name': 'Your name',
   'auth.orgName': 'Company or file name', 'auth.orgKind': 'Type', 'auth.kind.company': 'Company (AG, GmbH)', 'auth.kind.sole_trader': 'Self-employed',
-  'auth.kind.private': 'Private investor', 'auth.canton': 'Canton (e.g. ZH)', 'auth.noAccount': 'No account yet?', 'auth.haveAccount': 'Already have an account?',
+  'auth.kind.private': 'Private investor',
+  'auth.kind.sa': 'Company limited by shares (AG / SA)', 'auth.kind.sarl': 'Limited liability company (GmbH / Sàrl)', 'auth.kind.foundation': 'Foundation', 'auth.canton': 'Canton (e.g. ZH)', 'auth.noAccount': 'No account yet?', 'auth.haveAccount': 'Already have an account?',
   'auth.trial': 'Free trial, no credit card.', 'auth.passwordHint': 'At least 10 characters', 'auth.passwordConfirm': 'Confirm password', 'client.label': 'Client', 'client.search': 'Search clients…', 'client.none': 'No client found', 'client.add': 'New client',
   'common.save': 'Save', 'common.cancel': 'Cancel', 'common.download': 'Download', 'common.none': 'None', 'common.never': 'Never', 'common.all': 'All',
   'common.search': 'Search', 'common.filter': 'Filter', 'common.from': 'From', 'common.to': 'To', 'common.status': 'Status', 'common.date': 'Date',
@@ -235,6 +246,10 @@ const en: Dict = {
   'set.disclaimer': 'Crypto2Books is a bookkeeping support tool. It does not replace your fiduciary or tax advisor and is not a tax authority.',
   'set.references': 'Official references', 'set.policyLocked': 'The method can no longer be changed because entries are validated.',
   'set.window': 'Transfer matching window (hours)', 'set.markReviewed': 'Mark as reviewed (fiduciary)',
+  'set.legal': 'Legal form and tax status', 'set.taxStatus': 'Tax status (direct taxes)', 'set.tax.ordinary': 'Taxed normally',
+  'set.tax.exempt': 'Exempt (public interest, DBG art. 56 let. g)', 'set.tax.partial': 'Partially exempt',
+  'set.legalHelp': 'Purchases, sales, valuation and realised gains are booked the same way for an AG, a GmbH and a foundation (CO art. 957 ff., CC art. 83a). The legal form changes the classifications offered (endowment, donation, grant paid) and the tax notes in the reports. The tax status follows the cantonal tax authority’s decision.',
+  'rep.donations': 'Donations, endowments and grants paid',
 };
 
 const de: Dict = {
@@ -244,7 +259,8 @@ const de: Dict = {
   'nav.settings': 'Einstellungen', 'nav.logout': 'Abmelden',
   'auth.login': 'Anmelden', 'auth.register': 'Konto erstellen', 'auth.email': 'E-Mail', 'auth.password': 'Passwort', 'auth.name': 'Ihr Name',
   'auth.orgName': 'Firma oder Mandat', 'auth.orgKind': 'Art', 'auth.kind.company': 'Gesellschaft (AG, GmbH)', 'auth.kind.sole_trader': 'Selbständig',
-  'auth.kind.private': 'Privatanleger', 'auth.canton': 'Kanton (z. B. ZG)', 'auth.noAccount': 'Noch kein Konto?', 'auth.haveAccount': 'Bereits ein Konto?',
+  'auth.kind.private': 'Privatanleger',
+  'auth.kind.sa': 'Aktiengesellschaft (AG)', 'auth.kind.sarl': 'Gesellschaft mit beschränkter Haftung (GmbH)', 'auth.kind.foundation': 'Stiftung', 'auth.canton': 'Kanton (z. B. ZG)', 'auth.noAccount': 'Noch kein Konto?', 'auth.haveAccount': 'Bereits ein Konto?',
   'auth.trial': 'Kostenlose Testphase, ohne Kreditkarte.', 'auth.passwordHint': 'Mindestens 10 Zeichen', 'auth.passwordConfirm': 'Passwort bestätigen', 'client.label': 'Mandant', 'client.search': 'Mandant suchen…', 'client.none': 'Kein Mandant gefunden', 'client.add': 'Neuer Mandant',
   'common.save': 'Speichern', 'common.cancel': 'Abbrechen', 'common.download': 'Herunterladen', 'common.none': 'Keine', 'common.never': 'Nie', 'common.all': 'Alle',
   'common.search': 'Suchen', 'common.filter': 'Filtern', 'common.from': 'Von', 'common.to': 'Bis', 'common.status': 'Status', 'common.date': 'Datum',
@@ -289,6 +305,10 @@ const de: Dict = {
   'set.disclaimer': 'Crypto2Books ist ein Hilfsmittel für die Buchhaltung. Es ersetzt weder Treuhänder noch Steuerberater und ist keine Steuerbehörde.',
   'set.references': 'Offizielle Quellen', 'set.policyLocked': 'Die Methode kann nicht mehr geändert werden, da Buchungen genehmigt sind.',
   'set.window': 'Zeitfenster für Transferabgleich (Stunden)', 'set.markReviewed': 'Als geprüft markieren (Treuhänder)',
+  'set.legal': 'Rechtsform und Steuerstatus', 'set.taxStatus': 'Steuerstatus (direkte Steuern)', 'set.tax.ordinary': 'Ordentlich besteuert',
+  'set.tax.exempt': 'Steuerbefreit (Gemeinnützigkeit, DBG Art. 56 Bst. g)', 'set.tax.partial': 'Teilweise steuerbefreit',
+  'set.legalHelp': 'Käufe, Verkäufe, Bewertung und realisierte Gewinne werden bei AG, GmbH und Stiftung gleich verbucht (OR Art. 957 ff., ZGB Art. 83a). Die Rechtsform ändert die angebotenen Klassifizierungen (Zustiftung, Spende, ausgerichtete Vergabung) und die Steuerhinweise in den Berichten. Der Steuerstatus folgt dem Entscheid der kantonalen Steuerverwaltung.',
+  'rep.donations': 'Spenden, Zustiftungen und Vergabungen',
 };
 
 const it: Dict = {
@@ -298,7 +318,8 @@ const it: Dict = {
   'nav.settings': 'Impostazioni', 'nav.logout': 'Esci',
   'auth.login': 'Accedi', 'auth.register': 'Crea un account', 'auth.email': 'E-mail', 'auth.password': 'Password', 'auth.name': 'Il suo nome',
   'auth.orgName': 'Nome della società o del dossier', 'auth.orgKind': 'Tipo', 'auth.kind.company': 'Società (SA, Sagl)', 'auth.kind.sole_trader': 'Indipendente',
-  'auth.kind.private': 'Investitore privato', 'auth.canton': 'Cantone (es. TI)', 'auth.noAccount': 'Non ha ancora un account?', 'auth.haveAccount': 'Ha già un account?',
+  'auth.kind.private': 'Investitore privato',
+  'auth.kind.sa': 'Società anonima (SA)', 'auth.kind.sarl': 'Società a garanzia limitata (Sagl)', 'auth.kind.foundation': 'Fondazione', 'auth.canton': 'Cantone (es. TI)', 'auth.noAccount': 'Non ha ancora un account?', 'auth.haveAccount': 'Ha già un account?',
   'auth.trial': 'Prova gratuita, senza carta di credito.', 'auth.passwordHint': 'Almeno 10 caratteri', 'auth.passwordConfirm': 'Conferma password', 'client.label': 'Cliente', 'client.search': 'Cerca un cliente…', 'client.none': 'Nessun cliente trovato', 'client.add': 'Nuovo cliente',
   'common.save': 'Salva', 'common.cancel': 'Annulla', 'common.download': 'Scarica', 'common.none': 'Nessuno', 'common.never': 'Mai', 'common.all': 'Tutti',
   'common.search': 'Cerca', 'common.filter': 'Filtra', 'common.from': 'Dal', 'common.to': 'Al', 'common.status': 'Stato', 'common.date': 'Data',
@@ -343,6 +364,10 @@ const it: Dict = {
   'set.disclaimer': 'Crypto2Books è uno strumento di supporto contabile. Non sostituisce il suo fiduciario o consulente fiscale e non è un’autorità fiscale.',
   'set.references': 'Riferimenti ufficiali', 'set.policyLocked': 'Il metodo non può più essere modificato perché esistono registrazioni convalidate.',
   'set.window': 'Finestra di abbinamento dei trasferimenti (ore)', 'set.markReviewed': 'Segna come verificata (fiduciario)',
+  'set.legal': 'Forma giuridica e statuto fiscale', 'set.taxStatus': 'Statuto fiscale (imposte dirette)', 'set.tax.ordinary': 'Imposta normalmente',
+  'set.tax.exempt': 'Esente (utilità pubblica, LIFD art. 56 lett. g)', 'set.tax.partial': 'Parzialmente esente',
+  'set.legalHelp': 'Acquisti, vendite, valutazione e utili realizzati si contabilizzano allo stesso modo per una SA, una Sagl e una fondazione (CO art. 957 segg., CC art. 83a). La forma giuridica cambia le classificazioni proposte (dotazione, donazione, sussidio versato) e le note fiscali dei rapporti. Lo statuto fiscale segue la decisione dell’amministrazione cantonale.',
+  'rep.donations': 'Donazioni, dotazioni e sussidi versati',
 };
 
 export const LOCALES = ['fr', 'en', 'de', 'it'] as const;
@@ -360,24 +385,28 @@ export const CLASSIFICATION_LABELS: Record<Locale, Record<string, string>> = {
     withdrawal: 'Retrait externe', internal_transfer: 'Transfert entre vos comptes', trading_fee: 'Frais de trading', network_fee: 'Frais de réseau',
     staking_reward: 'Récompense de staking', mining_reward: 'Récompense de minage', airdrop: 'Airdrop', lending_interest: 'Intérêts de prêt', defi: 'DeFi',
     liquidity_pool: 'Pool de liquidité', nft_purchase: 'Achat NFT', nft_sale: 'Vente NFT', unknown: 'Inconnu',
+    donation_received: 'Don reçu', endowment_received: 'Dotation à la fondation (apport à la fortune)', grant_paid: 'Don ou subvention versé(e)',
   },
   en: {
     buy: 'Buy', sell: 'Sell', swap: 'Crypto swap', fiat_deposit: 'Fiat deposit', fiat_withdrawal: 'Fiat withdrawal', deposit: 'External deposit',
     withdrawal: 'External withdrawal', internal_transfer: 'Transfer between your accounts', trading_fee: 'Trading fee', network_fee: 'Network fee',
     staking_reward: 'Staking reward', mining_reward: 'Mining reward', airdrop: 'Airdrop', lending_interest: 'Lending interest', defi: 'DeFi',
     liquidity_pool: 'Liquidity pool', nft_purchase: 'NFT purchase', nft_sale: 'NFT sale', unknown: 'Unknown',
+    donation_received: 'Donation received', endowment_received: 'Endowment to the foundation (contribution to its assets)', grant_paid: 'Donation or grant paid',
   },
   de: {
     buy: 'Kauf', sell: 'Verkauf', swap: 'Krypto-Tausch', fiat_deposit: 'Fiat-Einzahlung', fiat_withdrawal: 'Fiat-Auszahlung', deposit: 'Externe Einzahlung',
     withdrawal: 'Externe Auszahlung', internal_transfer: 'Übertrag zwischen Ihren Konten', trading_fee: 'Handelsgebühr', network_fee: 'Netzwerkgebühr',
     staking_reward: 'Staking-Ertrag', mining_reward: 'Mining-Ertrag', airdrop: 'Airdrop', lending_interest: 'Zinsertrag (Lending)', defi: 'DeFi',
     liquidity_pool: 'Liquiditätspool', nft_purchase: 'NFT-Kauf', nft_sale: 'NFT-Verkauf', unknown: 'Unbekannt',
+    donation_received: 'Erhaltene Spende', endowment_received: 'Zustiftung (Zuwendung an das Stiftungsvermögen)', grant_paid: 'Ausgerichtete Spende oder Vergabung',
   },
   it: {
     buy: 'Acquisto', sell: 'Vendita', swap: 'Scambio cripto', fiat_deposit: 'Deposito fiat', fiat_withdrawal: 'Prelievo fiat', deposit: 'Deposito esterno',
     withdrawal: 'Prelievo esterno', internal_transfer: 'Trasferimento tra i suoi conti', trading_fee: 'Commissione di trading', network_fee: 'Commissione di rete',
     staking_reward: 'Ricompensa di staking', mining_reward: 'Ricompensa di mining', airdrop: 'Airdrop', lending_interest: 'Interessi di prestito', defi: 'DeFi',
     liquidity_pool: 'Pool di liquidità', nft_purchase: 'Acquisto NFT', nft_sale: 'Vendita NFT', unknown: 'Sconosciuto',
+    donation_received: 'Donazione ricevuta', endowment_received: 'Dotazione alla fondazione (apporto al patrimonio)', grant_paid: 'Donazione o sussidio versato',
   },
 };
 
@@ -395,4 +424,7 @@ export const ACCOUNT_KEY_LABELS: Record<string, { fr: string; example: string }>
   lending_income: { fr: 'Intérêts de prêts crypto', example: 'ex. 6950 Produits financiers' },
   external_deposit_counterpart: { fr: 'Contrepartie des dépôts externes', example: 'ex. 2850 Compte privé / apport' },
   external_withdrawal_counterpart: { fr: 'Contrepartie des retraits externes', example: 'ex. 2850 Compte privé' },
+  donation_income: { fr: 'Dons reçus (produit)', example: 'ex. 3xxx / 7500 Dons reçus' },
+  foundation_capital: { fr: 'Capital de la fondation (dotations)', example: 'ex. 2800 Capital de fondation' },
+  grants_expense: { fr: 'Dons et subventions versés (charge)', example: 'ex. 6xxx Dons / subventions versés' },
 };

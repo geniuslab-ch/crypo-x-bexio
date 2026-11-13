@@ -1,3 +1,4 @@
+import { LEGAL_FORMS } from '@/core/legalForms';
 import Link from 'next/link';
 import { registerAction } from '@/app/actions';
 import { Flash } from '@/components/Flash';
@@ -22,10 +23,8 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
         <label>{t('auth.orgName')}<input name="orgName" defaultValue={sp.orgName} required maxLength={160} /></label>
         <div className="grid grid-2">
           <label>{t('auth.orgKind')}
-            <select name="orgKind" defaultValue={sp.orgKind ?? 'company'}>
-              <option value="company">{t('auth.kind.company')}</option>
-              <option value="sole_trader">{t('auth.kind.sole_trader')}</option>
-              <option value="private">{t('auth.kind.private')}</option>
+            <select name="orgKind" defaultValue={sp.orgKind ?? 'sa'}>
+              {LEGAL_FORMS.map((f) => <option key={f} value={f}>{t(`auth.kind.${f}`)}</option>)}
             </select>
           </label>
           <label>{t('auth.canton')}<input name="canton" defaultValue={sp.canton} maxLength={2} /></label>

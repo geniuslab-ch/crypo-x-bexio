@@ -2,10 +2,12 @@ import { and, eq } from 'drizzle-orm';
 import {
   classifyTransactions, DEFAULT_CLASSIFICATION_OPTIONS, type ClassifiableTx, type UserRule,
 } from '@/core/classification/engine';
+import { classificationAllowed } from '@/core/legalForms';
 import { CLASSIFICATIONS, type Classification } from '@/core/types';
 import { audit } from '../audit';
 import { AppError, assertCanWrite, type Ctx } from '../context';
 import { accountingPolicies, classificationRules, movements, transactions } from '../db/schema';
+import { assertClassificationAllowed, getOrgProfile } from './organization';
 import { loadTransactions, lockedTransactionIds, normalizeNumeric, toMovement } from './transactions';
 
 /**
@@ -35,6 +37,15 @@ export async function reclassify(ctx: Ctx): Promise<{ changed: number; needsRevi
     transferWindowHours: policy?.transferWindowHours ?? DEFAULT_CLASSIFICATION_OPTIONS.transferWindowHours,
     transferTolerance: policy ? Number(policy.transferTolerance) : DEFAULT_CLASSIFICATION_OPTIONS.transferTolerance,
   });
+
+  // A classification reserved to foundations (endowment) coming from a file hint is never booked for another legal form.
+  const { kind } = await getOrgProfile(ctx);
+  for (const r of results.values()) {
+    if (classificationAllowed(kind, r.classification)) continue;
+    r.reasons = [...r.reasons, `« ${r.classification} » n’existe que pour une fondation : à classer manuellement`];
+    r.classification = 'unknown';
+    r.needsReview = true;
+  }
 
   let changed = 0;
   let needsReview = 0;
@@ -82,6 +93,7 @@ export async function setManualClassification(
 ): Promise<void> {
   assertCanWrite(ctx);
   if (classification && !CLASSIFICATIONS.includes(classification)) throw new AppError('invalid', 'invalid_classification');
+  if (classification) await assertClassificationAllowed(ctx, classification);
   const locked = await lockedTransactionIds(ctx);
   if (locked.has(txId)) throw new AppError('conflict', 'transaction_locked_by_validated_entry');
   const [l] = await loadTransactions(ctx, [txId]);

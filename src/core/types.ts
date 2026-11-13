@@ -19,6 +19,9 @@ export const CLASSIFICATIONS = [
   'mining_reward',
   'airdrop',
   'lending_interest',
+  'donation_received',
+  'endowment_received',
+  'grant_paid',
   'defi',
   'liquidity_pool',
   'nft_purchase',
@@ -43,6 +46,16 @@ export const BOOKABLE_CLASSIFICATIONS: ReadonlySet<Classification> = new Set<Cla
   'mining_reward',
   'airdrop',
   'lending_interest',
+  'donation_received',
+  'endowment_received',
+  'grant_paid',
+]);
+
+/** Gifts received and given (donations, foundation endowments, grants paid for the purpose). */
+export const DONATION_CLASSIFICATIONS: ReadonlySet<Classification> = new Set<Classification>([
+  'donation_received',
+  'endowment_received',
+  'grant_paid',
 ]);
 
 export const INCOME_CLASSIFICATIONS: ReadonlySet<Classification> = new Set<Classification>([

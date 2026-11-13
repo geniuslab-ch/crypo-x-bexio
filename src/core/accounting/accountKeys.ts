@@ -16,6 +16,9 @@ export const ACCOUNT_KEYS = [
   'lending_income',
   'external_deposit_counterpart',
   'external_withdrawal_counterpart',
+  'donation_income',
+  'foundation_capital',
+  'grants_expense',
 ] as const;
 
 export function cryptoAssetKey(asset: string): string {

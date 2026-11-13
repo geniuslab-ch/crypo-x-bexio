@@ -1,10 +1,12 @@
 import { hash, verify } from '@node-rs/argon2';
 import { and, eq, gt, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { LEGAL_FORMS } from '@/core/legalForms';
 import { audit } from '../audit';
 import { AppError, type Role } from '../context';
 import { hashToken, randomToken } from '../crypto';
 import type { DB } from '../db';
+import { legalFormColumns } from '../services/organization';
 import { accountingPolicies, memberships, organizations, sessions, subscriptions, users } from '../db/schema';
 
 const SESSION_DAYS = 14;
@@ -15,7 +17,8 @@ export const registerSchema = z.object({
   password: z.string().min(10, 'password_too_short').max(200),
   name: z.string().trim().min(1).max(120),
   orgName: z.string().trim().min(1).max(160),
-  orgKind: z.enum(['company', 'sole_trader', 'private']),
+  /** Precise legal form (sa, sarl, foundation, …); 'company' kept for callers that do not distinguish SA and Sàrl. */
+  orgKind: z.enum([...LEGAL_FORMS, 'company']),
   canton: z.string().trim().max(2).optional().nullable(),
   locale: z.enum(['fr', 'en', 'de', 'it']).default('fr'),
 });
@@ -29,7 +32,8 @@ export async function registerUser(db: DB, input: RegisterInput): Promise<{ user
   const passwordHash = await hash(data.password);
   return db.transaction(async (tx) => {
     const [u] = await tx.insert(users).values({ email: data.email, passwordHash, name: data.name, locale: data.locale }).returning({ id: users.id });
-    const [o] = await tx.insert(organizations).values({ name: data.orgName, kind: data.orgKind, canton: data.canton ?? null }).returning({ id: organizations.id });
+    const form = data.orgKind === 'company' ? { kind: 'company' as const, legalForm: null, taxStatus: 'ordinary' } : legalFormColumns(data.orgKind);
+    const [o] = await tx.insert(organizations).values({ name: data.orgName, ...form, canton: data.canton ?? null }).returning({ id: organizations.id });
     await tx.insert(memberships).values({ orgId: o!.id, userId: u!.id, role: 'owner' });
     await tx.insert(accountingPolicies).values({ orgId: o!.id });
     await tx.insert(subscriptions).values({

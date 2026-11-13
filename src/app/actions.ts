@@ -5,6 +5,7 @@ import { safeNextPath } from '@/server/auth/nextPath';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { isLegalForm, isTaxStatus, type LegalForm } from '@/core/legalForms';
 import { CLASSIFICATIONS, type Classification } from '@/core/types';
 import { clearSessionCookie, requireCtx, SESSION_COOKIE, setSessionCookie } from '@/server/auth/next';
 import { login, logout, registerUser, switchOrg } from '@/server/auth/service';
@@ -17,6 +18,7 @@ import { disconnect, refreshBexioData, setMapping, syncEntries } from '@/server/
 import { markPolicyReviewed, runCalculation, setEntriesValidated, updatePolicy } from '@/server/services/calculation';
 import { reclassify, setManualClassification } from '@/server/services/classification';
 import { createSource, importFile } from '@/server/services/imports';
+import { legalFormColumns, updateOrgProfile } from '@/server/services/organization';
 import { removeConnection, saveConnection, syncSource } from '@/server/services/sync';
 import { importRates, importTaxValues, revalue } from '@/server/services/valuation';
 
@@ -65,7 +67,7 @@ export async function registerAction(form: FormData) {
     const db = getDb();
     await registerUser(db, {
       email: String(form.get('email') ?? ''), password: String(form.get('password') ?? ''), name: String(form.get('name') ?? ''),
-      orgName: String(form.get('orgName') ?? ''), orgKind: String(form.get('orgKind') ?? 'company') as 'company',
+      orgName: String(form.get('orgName') ?? ''), orgKind: String(form.get('orgKind') ?? 'sa') as LegalForm,
       canton: String(form.get('canton') ?? '') || null, locale: (String(form.get('locale') ?? 'fr') as 'fr'),
     });
     const { token } = await login(db, String(form.get('email')), String(form.get('password')));
@@ -109,14 +111,17 @@ export async function switchOrgAction(form: FormData) {
 export async function createClientOrgAction(form: FormData) {
   const { ctx } = await requireCtx();
   const name = String(form.get('name') ?? '').trim();
-  const kind = String(form.get('kind') ?? 'company') as 'company' | 'sole_trader' | 'private';
-  if (!name || !['company', 'sole_trader', 'private'].includes(kind)) back('/fiduciary', 'error', 'invalid_input');
+  const legalForm = String(form.get('kind') ?? '');
+  if (!name || !isLegalForm(legalForm)) back('/fiduciary', 'error', 'invalid_input');
+  const taxStatus = String(form.get('taxStatus') ?? 'ordinary');
+  const columns = legalFormColumns(legalForm as LegalForm, isTaxStatus(taxStatus) ? taxStatus : 'ordinary');
+  const kind = columns.kind;
   await ctx.db.transaction(async (db) => {
-    const [o] = await db.insert(organizations).values({ name, kind, canton: String(form.get('canton') ?? '') || null }).returning({ id: organizations.id });
+    const [o] = await db.insert(organizations).values({ name, ...columns, canton: String(form.get('canton') ?? '') || null }).returning({ id: organizations.id });
     // The creator of a client file acts as its fiduciary.
     await db.insert(memberships).values({ orgId: o!.id, userId: ctx.userId, role: 'fiduciary' });
     await db.insert(accountingPolicies).values({ orgId: o!.id });
-    await audit(db, { orgId: o!.id, actorUserId: ctx.userId, action: 'organization.created', entity: 'organization', entityId: o!.id, after: { name, kind } });
+    await audit(db, { orgId: o!.id, actorUserId: ctx.userId, action: 'organization.created', entity: 'organization', entityId: o!.id, after: { name, kind, legalForm: columns.legalForm, taxStatus: columns.taxStatus } });
   });
   back('/fiduciary', 'ok', 'client_created');
 }
@@ -306,6 +311,21 @@ export async function updatePolicyAction(form: FormData) {
   } catch (e) {
     back('/settings', 'error', msg(e));
   }
+  back('/settings', 'ok', 'saved');
+}
+
+export async function updateLegalFormAction(form: FormData) {
+  const { ctx } = await requireCtx();
+  const legalForm = String(form.get('legalForm') ?? '');
+  const taxStatus = String(form.get('taxStatus') ?? 'ordinary');
+  try {
+    if (!isLegalForm(legalForm) || !isTaxStatus(taxStatus)) throw new AppError('invalid', 'invalid_input');
+    await updateOrgProfile(ctx, legalForm, taxStatus);
+    await reclassify(ctx);
+  } catch (e) {
+    back('/settings', 'error', msg(e));
+  }
+  revalidatePath('/', 'layout');
   back('/settings', 'ok', 'saved');
 }
 

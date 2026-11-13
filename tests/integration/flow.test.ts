@@ -210,3 +210,36 @@ describe('bexio OAuth', () => {
     expect(String(tokenCall.body)).toContain('grant_type=authorization_code');
   });
 });
+
+describe('legal forms', () => {
+  it('creates a foundation, keeps endowments for foundations only and guards the switch back', async () => {
+    const { getOrgProfile, updateOrgProfile } = await import('@/server/services/organization');
+    const { userId, orgId } = await registerUser(db, {
+      email: 'board@example.test', password: 'correct horse battery', name: 'Board', orgName: 'Stiftung Test', orgKind: 'foundation', canton: 'GE',
+    });
+    const f: Ctx = { db, userId, orgId, role: 'owner' };
+    expect(await getOrgProfile(f)).toEqual({ kind: 'foundation', legalForm: 'foundation', taxStatus: 'ordinary' });
+    await updateOrgProfile(f, 'foundation', 'exempt');
+    expect((await getOrgProfile(f)).taxStatus).toBe('exempt');
+
+    // The company file of the first user cannot classify an endowment.
+    const [anyTx] = await db.select().from(transactions).where(eq(transactions.orgId, ctx.orgId)).limit(1);
+    await expect(setManualClassification(ctx, anyTx!.id, 'endowment_received', false)).rejects.toThrow('classification_not_for_legal_form');
+    await updateOrgProfile(ctx, 'sarl', 'ordinary');
+    expect(await getOrgProfile(ctx)).toEqual({ kind: 'company', legalForm: 'sarl', taxStatus: 'ordinary' });
+  });
+});
+
+describe('leaving the foundation form', () => {
+  it('removes remembered endowment rules instead of blocking the change', async () => {
+    const { updateOrgProfile } = await import('@/server/services/organization');
+    const { classificationRules } = await import('@/server/db/schema');
+    const { userId, orgId } = await registerUser(db, {
+      email: 'switch@example.test', password: 'correct horse battery', name: 'S', orgName: 'Stiftung B', orgKind: 'foundation',
+    });
+    const f: Ctx = { db, userId, orgId, role: 'owner' };
+    await db.insert(classificationRules).values({ orgId, provider: 'kraken', rawType: 'deposit', classification: 'endowment_received', createdBy: userId });
+    await updateOrgProfile(f, 'sa', 'ordinary');
+    expect(await db.select().from(classificationRules).where(eq(classificationRules.orgId, orgId))).toEqual([]);
+  });
+});

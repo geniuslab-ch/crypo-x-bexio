@@ -86,7 +86,7 @@ export interface EngineResult {
 }
 
 const FEE_CAPITALIZABLE = new Set<Classification>(['buy', 'swap', 'sell']);
-const NETWORK_FEE_CONTEXT = new Set<Classification>(['deposit', 'withdrawal', 'internal_transfer', 'network_fee']);
+const NETWORK_FEE_CONTEXT = new Set<Classification>(['deposit', 'withdrawal', 'internal_transfer', 'network_fee', 'donation_received', 'endowment_received', 'grant_paid']);
 
 const COUNTERPART: Partial<Record<Classification, { key: string; side: 'in' | 'out' }>> = {
   fiat_deposit: { key: 'bank_clearing', side: 'in' },
@@ -97,6 +97,11 @@ const COUNTERPART: Partial<Record<Classification, { key: string; side: 'in' | 'o
   mining_reward: { key: 'mining_income', side: 'in' },
   airdrop: { key: 'airdrop_income', side: 'in' },
   lending_interest: { key: 'lending_income', side: 'in' },
+  // Gifts are valued at the market value of the day: a donation received creates a lot at that value; a grant paid
+  // in crypto is a disposal at market value (realised gain/loss) and an expense of the same amount.
+  donation_received: { key: 'donation_income', side: 'in' },
+  endowment_received: { key: 'foundation_capital', side: 'in' },
+  grant_paid: { key: 'grants_expense', side: 'out' },
 };
 
 interface Pool {
