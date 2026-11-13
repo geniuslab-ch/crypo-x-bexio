@@ -22,6 +22,24 @@ export function bexioConfig(): BexioConfig | null {
   return { clientId, clientSecret, redirectUri: `${appUrl.replace(/\/$/, '')}/api/bexio/callback` };
 }
 
+/** Host of the request as seen by the user (Vercel and other proxies set x-forwarded-host). */
+export function requestHost(req: Request): string {
+  return (req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? new URL(req.url).host).split(',')[0]!.trim().toLowerCase();
+}
+
+/**
+ * When APP_URL is set and the request arrived on another host, returns the same path on the APP_URL origin.
+ * Returns null when the host already matches or APP_URL is not set.
+ */
+export function canonicalRedirect(req: Request, path: string): string | null {
+  const appUrl = process.env.APP_URL;
+  if (!appUrl) return null;
+  let canonical: URL;
+  try { canonical = new URL(appUrl); } catch { return null; }
+  if (canonical.host.toLowerCase() === requestHost(req)) return null;
+  return new URL(path, canonical.origin).toString();
+}
+
 export function authorizationUrl(cfg: BexioConfig, state: string, nonce: string): string {
   const u = new URL(BEXIO_AUTH_URL);
   u.searchParams.set('client_id', cfg.clientId);
