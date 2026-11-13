@@ -1,6 +1,7 @@
 'use server';
 
 import { eq } from 'drizzle-orm';
+import { safeNextPath } from '@/server/auth/nextPath';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -77,13 +78,14 @@ export async function registerAction(form: FormData) {
 }
 
 export async function loginAction(form: FormData) {
+  const next = safeNextPath(form.get('next'));
   try {
     const { token } = await login(getDb(), String(form.get('email') ?? ''), String(form.get('password') ?? ''));
     await setSessionCookie(token);
   } catch (e) {
-    back('/login', 'error', msg(e));
+    back(next === '/dashboard' ? '/login' : `/login?next=${encodeURIComponent(next)}`, 'error', msg(e));
   }
-  redirect('/dashboard');
+  redirect(next);
 }
 
 export async function logoutAction() {

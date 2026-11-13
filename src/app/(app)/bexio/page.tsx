@@ -39,6 +39,7 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
           {conn && <form action={refreshBexioAction}><button className="btn" type="submit">{t('bx.refresh')}</button></form>}
           {conn && <form action={disconnectBexioAction}><button className="btn btn-danger" type="submit">{t('bx.disconnect')}</button></form>}
         </div>
+        {configured && <p className="small muted">URL de redirection à enregistrer dans le portail développeur bexio : <span className="mono">{bexioConfig()!.redirectUri}</span></p>}
         {conn && <p className="small muted">{accounts.length} comptes chargés · devise CHF bexio : {conn.chfCurrencyId ?? 'non chargée'}</p>}
       </div>
 
