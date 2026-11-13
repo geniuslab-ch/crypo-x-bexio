@@ -11,7 +11,7 @@ const qty = (name: string) => numeric(name, { precision: 38, scale: 18 });
 /** CHF amounts and rates at full precision; rounding to cents happens only in journal lines. */
 const amt = (name: string) => numeric(name, { precision: 38, scale: 18 });
 
-export const orgKind = pgEnum('org_kind', ['company', 'sole_trader', 'private']);
+export const orgKind = pgEnum('org_kind', ['company', 'sole_trader', 'private', 'foundation']);
 export const role = pgEnum('member_role', ['owner', 'accountant', 'fiduciary', 'viewer']);
 export const direction = pgEnum('movement_direction', ['in', 'out', 'fee']);
 export const reviewStatus = pgEnum('review_status', ['ok', 'needs_review']);
@@ -43,6 +43,10 @@ export const organizations = pgTable('organizations', {
   id: id(),
   name: text('name').notNull(),
   kind: orgKind('kind').notNull(),
+  /** sa | sarl for kind "company" (null for files created before the choice existed). See src/core/legalForms.ts. */
+  legalForm: text('legal_form'),
+  /** Direct tax status of a legal entity: ordinary | exempt | partial (LIFD art. 56 let. g). */
+  taxStatus: text('tax_status').notNull().default('ordinary'),
   canton: text('canton'),
   baseCurrency: text('base_currency').notNull().default('CHF'),
   createdAt: createdAt(),

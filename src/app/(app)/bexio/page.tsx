@@ -8,19 +8,22 @@ import { bexioConfig } from '@/integrations/bexio/oauth';
 import { requireCtx } from '@/server/auth/next';
 import { getConnection, listBexioAccounts, listMappings, listSyncAttempts } from '@/server/services/bexio';
 import { listEntries } from '@/server/services/calculation';
+import { getOrgProfile } from '@/server/services/organization';
 
 export default async function BexioPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   const sp = await searchParams;
   const { ctx } = await requireCtx();
   const { t, date } = await getI18n();
-  const [conn, accounts, mappings, attempts, entries] = await Promise.all([
-    getConnection(ctx), listBexioAccounts(ctx), listMappings(ctx), listSyncAttempts(ctx), listEntries(ctx, ['validated', 'sync_failed', 'synced']),
+  const [conn, accounts, mappings, attempts, entries, org] = await Promise.all([
+    getConnection(ctx), listBexioAccounts(ctx), listMappings(ctx), listSyncAttempts(ctx), listEntries(ctx, ['validated', 'sync_failed', 'synced']), getOrgProfile(ctx),
   ]);
   const configured = !!bexioConfig();
   const mapped = new Map(mappings.map((m) => [m.key, m.bexioAccountId]));
   // Asset-specific keys that already exist in entries can be mapped individually.
   const usedKeys = new Set(entries.flatMap((e) => e.lines.flatMap((l) => [l.debitKey, l.creditKey])));
-  const keys = [...new Set([...ACCOUNT_KEYS, ...[...usedKeys].filter((k) => k.includes(':')), ...mappings.map((m) => m.key)])].sort();
+  // The foundation capital account only exists for foundations (unless already used or mapped).
+  const baseKeys = ACCOUNT_KEYS.filter((k) => k !== 'foundation_capital' || org.kind === 'foundation');
+  const keys = [...new Set([...baseKeys, ...[...usedKeys].filter((k) => k.includes(':')), ...mappings.map((m) => m.key)])].sort();
   const pending = entries.filter((e) => e.status !== 'synced').length;
   const label = (k: string) => ACCOUNT_KEY_LABELS[k]?.fr ?? (k.startsWith('crypto_asset:') ? `Crypto ${k.slice(13)} (spécifique)` : k.startsWith('fiat_clearing:') ? `Fiat ${k.slice(14)} sur exchange (spécifique)` : k);
   return (
