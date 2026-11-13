@@ -45,7 +45,7 @@ const MESSAGES: Record<string, string> = {
   source_created: 'Source ajoutée.',
   client_created: 'Dossier client créé.',
   classification_not_for_legal_form: 'Cette classification n’existe que pour les fondations (dotation à la fortune de la fondation).',
-  endowments_require_foundation: 'Ce dossier contient des dotations : reclassez-les (et supprimez les règles correspondantes) avant de quitter la forme « Fondation ».',
+  endowments_require_foundation: 'Ce dossier contient des dotations : reclassez d’abord les transactions classées manuellement en « Dotation » avant de quitter la forme « Fondation ».',
   disconnected: 'bexio déconnecté.',
   run_complete: 'Calcul terminé.',
   run_blocked: 'Calcul bloqué : voir les points à résoudre.',

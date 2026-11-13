@@ -1,4 +1,4 @@
-import { and, eq, inArray, or } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import {
   classificationAllowed, hasTaxStatus, isTaxStatus, kindOfLegalForm, legalFormOf,
   type LegalForm, type OrgKind, type TaxStatus,
@@ -52,22 +52,30 @@ export async function assertClassificationAllowed(ctx: Ctx, c: Classification): 
 
 /**
  * Changes the legal form and tax status of the active client file. Bookings do not depend on them, but a file that
- * stops being a foundation must not keep endowments (foundation-only) in its transactions or rules.
+ * stops being a foundation must not keep endowments (foundation-only): manual endowments block the change, remembered
+ * endowment rules are removed and the transactions they matched are sent back to review by the next reclassification.
  */
 export async function updateOrgProfile(ctx: Ctx, form: LegalForm, taxStatus: TaxStatus): Promise<void> {
   assertCanWrite(ctx);
   const before = await getOrgProfile(ctx);
   const next = legalFormColumns(form, taxStatus);
-  if (next.kind !== 'foundation') {
+  const leavingFoundation = before.kind === 'foundation' && next.kind !== 'foundation';
+  if (leavingFoundation) {
+    // Transactions a person classified as endowments must be reclassified by that person first.
     const [used] = await ctx.db.select({ id: transactions.id }).from(transactions)
-      .where(and(eq(transactions.orgId, ctx.orgId), or(eq(transactions.manualClassification, 'endowment_received'), eq(transactions.classification, 'endowment_received'))))
+      .where(and(eq(transactions.orgId, ctx.orgId), eq(transactions.manualClassification, 'endowment_received')))
       .limit(1);
-    const [rule] = await ctx.db.select({ id: classificationRules.id }).from(classificationRules)
-      .where(and(eq(classificationRules.orgId, ctx.orgId), eq(classificationRules.classification, 'endowment_received'))).limit(1);
-    if (used || rule) throw new AppError('conflict', 'endowments_require_foundation');
+    if (used) throw new AppError('conflict', 'endowments_require_foundation');
   }
   await ctx.db.transaction(async (db) => {
     await db.update(organizations).set(next).where(eq(organizations.id, ctx.orgId));
+    if (leavingFoundation) {
+      // Remembered endowment rules no longer apply; the transactions they matched go back to review on reclassification.
+      const removed = await db.delete(classificationRules)
+        .where(and(eq(classificationRules.orgId, ctx.orgId), eq(classificationRules.classification, 'endowment_received')))
+        .returning({ id: classificationRules.id });
+      if (removed.length) await audit(db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'classification_rules.removed', entity: 'organization', entityId: ctx.orgId, before: { ids: removed.map((r) => r.id) } });
+    }
     await audit(db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'organization.legal_form_changed', entity: 'organization', entityId: ctx.orgId, before, after: next });
   });
 }

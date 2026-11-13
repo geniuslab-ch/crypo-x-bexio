@@ -229,3 +229,17 @@ describe('legal forms', () => {
     expect(await getOrgProfile(ctx)).toEqual({ kind: 'company', legalForm: 'sarl', taxStatus: 'ordinary' });
   });
 });
+
+describe('leaving the foundation form', () => {
+  it('removes remembered endowment rules instead of blocking the change', async () => {
+    const { updateOrgProfile } = await import('@/server/services/organization');
+    const { classificationRules } = await import('@/server/db/schema');
+    const { userId, orgId } = await registerUser(db, {
+      email: 'switch@example.test', password: 'correct horse battery', name: 'S', orgName: 'Stiftung B', orgKind: 'foundation',
+    });
+    const f: Ctx = { db, userId, orgId, role: 'owner' };
+    await db.insert(classificationRules).values({ orgId, provider: 'kraken', rawType: 'deposit', classification: 'endowment_received', createdBy: userId });
+    await updateOrgProfile(f, 'sa', 'ordinary');
+    expect(await db.select().from(classificationRules).where(eq(classificationRules.orgId, orgId))).toEqual([]);
+  });
+});

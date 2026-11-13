@@ -319,6 +319,7 @@ export async function updateLegalFormAction(form: FormData) {
   try {
     if (!isLegalForm(legalForm) || !isTaxStatus(taxStatus)) throw new AppError('invalid', 'invalid_input');
     await updateOrgProfile(ctx, legalForm, taxStatus);
+    await reclassify(ctx);
   } catch (e) {
     back('/settings', 'error', msg(e));
   }
