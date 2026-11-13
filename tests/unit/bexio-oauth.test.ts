@@ -26,3 +26,11 @@ describe('bexio redirect URL', () => {
     expect(canonicalRedirect(same, '/api/bexio/connect')).toBeNull();
   });
 });
+
+describe('post-login destination', async () => {
+  const { safeNextPath } = await import('@/server/auth/nextPath');
+  it('keeps same-site paths and rejects everything else', () => {
+    expect(safeNextPath('/api/bexio/connect')).toBe('/api/bexio/connect');
+    for (const bad of ['//evil.com', '/\\evil.com', 'https://evil.com', '', null, '/a b']) expect(safeNextPath(bad)).toBe('/dashboard');
+  });
+});

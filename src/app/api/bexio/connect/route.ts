@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireCtx } from '@/server/auth/next';
+import { currentSession, requireCtx } from '@/server/auth/next';
 import { AppError } from '@/server/context';
 import { canonicalRedirect } from '@/integrations/bexio/oauth';
 import { startConnect } from '@/server/services/bexio';
@@ -10,6 +10,8 @@ export async function GET(req: Request) {
   // Restart the flow on the APP_URL host first.
   const canonical = canonicalRedirect(req, '/api/bexio/connect');
   if (canonical) return NextResponse.redirect(canonical);
+  // Not signed in on this host yet: log in, then come straight back here to continue the connection.
+  if (!(await currentSession())) return NextResponse.redirect(new URL('/login?next=%2Fapi%2Fbexio%2Fconnect', req.url));
   const { ctx } = await requireCtx();
   try {
     return NextResponse.redirect(await startConnect(ctx));
