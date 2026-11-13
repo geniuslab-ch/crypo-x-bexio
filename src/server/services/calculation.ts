@@ -10,7 +10,7 @@ import { AppError, assertCanValidate, assertCanWrite, type Ctx } from '../contex
 import {
   accountingPolicies, calculationRuns, disposals, journalEntries, journalLines, lots, transactions,
 } from '../db/schema';
-import { effectiveClassification, loadTransactions, normalizeNumeric, toValuedMovement, type LoadedTx } from './transactions';
+import { effectiveClassification, loadTransactions, normalizeNumeric, toEngineInput, walletAccountSources, type LoadedTx } from './transactions';
 
 export interface RunIssue extends EngineIssue {
   occurredAt?: string;
@@ -73,14 +73,15 @@ export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status:
   };
   const loaded = await loadTransactions(ctx);
   const issues: RunIssue[] = [];
-  const engineInput: AccountingTx[] = [];
+  const bookable: LoadedTx[] = [];
   for (const l of loaded) {
     if (l.tx.reviewStatus === 'needs_review' && !l.tx.manualClassification) {
       issues.push({ txId: l.tx.id, code: 'needs_review', message: 'La classification doit être confirmée', occurredAt: l.tx.occurredAt.toISOString() });
       continue;
     }
-    engineInput.push({ id: l.tx.id, occurredAt: l.tx.occurredAt, classification: effectiveClassification(l.tx), movements: l.movements.map(toValuedMovement) });
+    bookable.push(l);
   }
+  const engineInput: AccountingTx[] = toEngineInput(bookable, await walletAccountSources(ctx));
   const engine = runAccounting(engineInput, policy);
   const byId = new Map(loaded.map((l) => [l.tx.id, l]));
   for (const i of engine.issues) issues.push({ ...i, occurredAt: byId.get(i.txId)?.tx.occurredAt.toISOString() });

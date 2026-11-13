@@ -18,6 +18,13 @@ export interface AccountingTx {
   occurredAt: Date;
   classification: Classification;
   movements: ValuedMovement[];
+  /**
+   * Wallet (source id) when the source has its own crypto account; empty = the common pool. Only set when the user
+   * chose per-wallet accounts, so existing calculations are unchanged otherwise.
+   */
+  wallet?: string | null;
+  /** Sending side of a matched transfer to another of the user's wallets: where the units go and how many arrive. */
+  transferTo?: { wallet: string | null; receivedQuantity: string } | null;
 }
 
 export interface LotAllocation {
@@ -106,12 +113,15 @@ const COUNTERPART: Partial<Record<Classification, { key: string; side: 'in' | 'o
 
 interface Pool {
   lots: HoldingLot[];
+  asset: string;
 }
 
 /**
  * Runs the cost-basis engine over transactions in chronological order and produces balanced postings.
  * Pure and deterministic: the same input always yields the same output.
- * Pooling: one pool per asset across all sources (own-wallet transfers do not change the pool).
+ * Pooling: one pool per asset across all sources (own-wallet transfers do not change the pool), except for sources
+ * with their own crypto account: they keep their own lots, and a transfer between two pools moves the lots (at their
+ * cost and acquisition date) and books the cost from one wallet account to the other. No gain arises on a transfer.
  */
 export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): EngineResult {
   const txs = [...txsIn].sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime() || a.id.localeCompare(b.id));
@@ -121,11 +131,12 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
   const blockedAssets = new Set<string>();
   let lotSeq = 0;
 
-  const pool = (asset: string) => {
-    let p = pools.get(asset);
+  const pool = (asset: string, wallet?: string | null) => {
+    const k = `${asset}\u0000${wallet ?? ''}`;
+    let p = pools.get(k);
     if (!p) {
-      p = { lots: [] };
-      pools.set(asset, p);
+      p = { lots: [], asset };
+      pools.set(k, p);
     }
     return p;
   };
@@ -168,10 +179,42 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
         if (capitalize && tx.classification !== 'sell' && idx === 0) cost = cost.plus(feeTotal);
         const lotId = `${tx.id}#${++lotSeq}`;
         const qty = new D(m.quantity);
-        addLot(pool(m.asset), { lotId, asset: m.asset, acquiredAt: tx.occurredAt, quantity: qty, remaining: qty, cost, remainingCost: cost }, policy.method);
+        addLot(pool(m.asset, tx.wallet), { lotId, asset: m.asset, acquiredAt: tx.occurredAt, quantity: qty, remaining: qty, cost, remainingCost: cost }, policy.method);
         acquisitions.push({ txId: tx.id, lotId, asset: m.asset, quantity: qty.toString(), costChf: cost.toString(), acquiredAt: tx.occurredAt });
-        postings.push({ key: cryptoAssetKey(m.asset), amount: cost });
+        postings.push({ key: cryptoAssetKey(m.asset, tx.wallet), amount: cost });
       });
+    }
+
+    // 2b. Transfer to another pool (per-wallet accounts): move lots at cost, no gain.
+    if (isTransfer && tx.transferTo && (tx.transferTo.wallet ?? '') !== (tx.wallet ?? '')) {
+      const outs = tx.movements.filter((m) => m.direction === 'out' && !isFiat(m.asset));
+      for (const m of outs) {
+        if (blockedAssets.has(m.asset)) {
+          issues.push({ txId: tx.id, code: 'insufficient_lots', message: `${m.asset} : historique antérieur incomplet, résultats bloqués pour cet actif` });
+          txBlocked = true;
+          continue;
+        }
+        const qty = new D(m.quantity);
+        const from = pool(m.asset, tx.wallet);
+        const moved = takeLots(from, qty);
+        if (!moved) {
+          const available = from.lots.reduce((a, l) => a.plus(l.remaining), ZERO);
+          issues.push({ txId: tx.id, code: 'insufficient_lots', message: `${m.asset} : transfert de ${qty.toString()} depuis un wallet qui n’en détient que ${available.toString()} à cette date. Un achat ou un transfert antérieur vers ce wallet manque probablement.` });
+          blockedAssets.add(m.asset);
+          txBlocked = true;
+          continue;
+        }
+        const ratio = new D(tx.transferTo.receivedQuantity).div(qty);
+        const to = pool(m.asset, tx.transferTo.wallet);
+        let cost = ZERO;
+        for (const part of moved) {
+          const q = part.quantity.times(ratio);
+          addLot(to, { lotId: `${part.lotId}>${tx.id}`, asset: m.asset, acquiredAt: part.acquiredAt, quantity: q, remaining: q, cost: part.cost, remainingCost: part.cost }, policy.method);
+          cost = cost.plus(part.cost);
+        }
+        postings.push({ key: cryptoAssetKey(m.asset, tx.transferTo.wallet), amount: cost });
+        postings.push({ key: cryptoAssetKey(m.asset, tx.wallet), amount: cost.neg() });
+      }
     }
 
     // 3. Disposals: principal crypto out legs, then crypto fee legs.
@@ -193,9 +236,9 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
         continue;
       }
       const qty = new D(m.quantity);
-      const taken = takeFromPool(pool(m.asset), qty, policy.method);
+      const taken = takeFromPool(pool(m.asset, tx.wallet), qty, policy.method);
       if (!taken) {
-        const available = pool(m.asset).lots.reduce((a, l) => a.plus(l.remaining), ZERO);
+        const available = pool(m.asset, tx.wallet).lots.reduce((a, l) => a.plus(l.remaining), ZERO);
         issues.push({
           txId: tx.id,
           code: 'insufficient_lots',
@@ -210,7 +253,7 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
         txId: tx.id, asset: m.asset, quantity: qty.toString(), proceedsChf: proceeds.toString(), costChf: taken.cost.toString(),
         gainChf: gain.toString(), kind, allocations: taken.allocations,
       });
-      postings.push({ key: cryptoAssetKey(m.asset), amount: taken.cost.neg() });
+      postings.push({ key: cryptoAssetKey(m.asset, tx.wallet), amount: taken.cost.neg() });
     }
     if (txBlocked) continue;
 
@@ -238,18 +281,25 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
   }
 
   const holdings = new Map<string, { quantity: Dec; cost: Dec; lots: HoldingLot[] }>();
-  for (const [asset, p] of pools) {
+  for (const p of pools.values()) {
     const lots = p.lots.filter((l) => l.remaining.gt(0));
-    holdings.set(asset, {
-      quantity: lots.reduce((a, l) => a.plus(l.remaining), ZERO),
-      cost: lots.reduce((a, l) => a.plus(l.remainingCost), ZERO),
-      lots,
+    const h = holdings.get(p.asset) ?? { quantity: ZERO, cost: ZERO, lots: [] };
+    holdings.set(p.asset, {
+      quantity: lots.reduce((a, l) => a.plus(l.remaining), h.quantity),
+      cost: lots.reduce((a, l) => a.plus(l.remainingCost), h.cost),
+      lots: [...h.lots, ...lots],
     });
   }
   return { results, issues, holdings };
 }
 
 function addLot(p: Pool, lot: HoldingLot, method: CostBasisMethod) {
+  if (method === 'fifo' && p.lots.length > 0 && p.lots[p.lots.length - 1]!.acquiredAt > lot.acquiredAt) {
+    // A lot moved in from another wallet keeps its acquisition date: insert it in date order.
+    const i = p.lots.findIndex((l) => l.acquiredAt > lot.acquiredAt);
+    p.lots.splice(i, 0, lot);
+    return;
+  }
   if (method === 'wac' && p.lots.length > 0) {
     // Weighted average: a single pooled lot per asset.
     const pooled = p.lots[0]!;
@@ -282,4 +332,23 @@ function takeFromPool(p: Pool, qty: Dec, method: CostBasisMethod): { cost: Dec; 
     if (method === 'wac') break;
   }
   return { cost, allocations };
+}
+
+/** Takes lots out of a pool without realising anything (transfer between wallets). */
+function takeLots(p: Pool, qty: Dec): { lotId: string; acquiredAt: Date; quantity: Dec; cost: Dec }[] | null {
+  const available = p.lots.reduce((a, l) => a.plus(l.remaining), ZERO);
+  if (available.lt(qty)) return null;
+  let left = qty;
+  const out: { lotId: string; acquiredAt: Date; quantity: Dec; cost: Dec }[] = [];
+  for (const lot of p.lots) {
+    if (left.isZero()) break;
+    if (lot.remaining.isZero()) continue;
+    const take = D.min(left, lot.remaining);
+    const partCost = take.eq(lot.remaining) ? lot.remainingCost : lot.remainingCost.times(take).div(lot.remaining);
+    lot.remaining = lot.remaining.minus(take);
+    lot.remainingCost = lot.remainingCost.minus(partCost);
+    left = left.minus(take);
+    out.push({ lotId: lot.lotId, acquiredAt: lot.acquiredAt, quantity: take, cost: partCost });
+  }
+  return out;
 }

@@ -1,21 +1,22 @@
 import { disconnectBexioAction, refreshBexioAction, saveMappingsAction, syncBexioAction } from '@/app/actions';
 import { Flash } from '@/components/Flash';
 import { StatusBadge } from '@/components/ui';
-import { ACCOUNT_KEYS } from '@/core/accounting/accountKeys';
+import { ACCOUNT_KEYS, walletAccountKey } from '@/core/accounting/accountKeys';
 import { ACCOUNT_KEY_LABELS } from '@/i18n/dictionaries';
 import { getI18n } from '@/i18n/server';
 import { bexioConfig } from '@/integrations/bexio/oauth';
 import { requireCtx } from '@/server/auth/next';
 import { getConnection, listBexioAccounts, listMappings, listSyncAttempts } from '@/server/services/bexio';
 import { listEntries } from '@/server/services/calculation';
+import { listSources } from '@/server/services/imports';
 import { getOrgProfile } from '@/server/services/organization';
 
 export default async function BexioPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   const sp = await searchParams;
   const { ctx } = await requireCtx();
   const { t, date } = await getI18n();
-  const [conn, accounts, mappings, attempts, entries, org] = await Promise.all([
-    getConnection(ctx), listBexioAccounts(ctx), listMappings(ctx), listSyncAttempts(ctx), listEntries(ctx, ['validated', 'sync_failed', 'synced']), getOrgProfile(ctx),
+  const [conn, accounts, mappings, attempts, entries, org, srcs] = await Promise.all([
+    getConnection(ctx), listBexioAccounts(ctx), listMappings(ctx), listSyncAttempts(ctx), listEntries(ctx, ['validated', 'sync_failed', 'synced']), getOrgProfile(ctx), listSources(ctx),
   ]);
   const configured = !!bexioConfig();
   const mapped = new Map(mappings.map((m) => [m.key, m.bexioAccountId]));
@@ -23,7 +24,11 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
   const usedKeys = new Set(entries.flatMap((e) => e.lines.flatMap((l) => [l.debitKey, l.creditKey])));
   // The foundation capital account only exists for foundations (unless already used or mapped).
   const baseKeys = ACCOUNT_KEYS.filter((k) => k !== 'foundation_capital' || org.kind === 'foundation');
-  const keys = [...new Set([...baseKeys, ...[...usedKeys].filter((k) => k.includes(':')), ...mappings.map((m) => m.key)])].sort();
+  // Per-wallet keys are set in their own section below.
+  const keys = [...new Set([...baseKeys, ...[...usedKeys].filter((k) => k.includes(':')), ...mappings.map((m) => m.key)])].filter((k) => !k.includes('@')).sort();
+  const locked = entries.length > 0;
+  const accountOptions = (k: string) => accounts.filter((a) => a.isActive || mapped.get(k) === a.bexioId)
+    .map((a) => <option key={a.bexioId} value={a.bexioId}>{a.accountNo} · {a.name}{a.isActive ? '' : ' (inactif)'}</option>);
   const pending = entries.filter((e) => e.status !== 'synced').length;
   const label = (k: string) => ACCOUNT_KEY_LABELS[k]?.fr ?? (k.startsWith('crypto_asset:') ? `Crypto ${k.slice(13)} (spécifique)` : k.startsWith('fiat_clearing:') ? `Fiat ${k.slice(14)} sur exchange (spécifique)` : k);
   return (
@@ -60,6 +65,23 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
                 </select></td></tr>
             ))}</tbody>
           </table></div>
+          {srcs.length > 0 && <>
+            <h3 style={{ marginBottom: 0 }}>Comptes par wallet (facultatif)</h3>
+            <p className="small muted">Par défaut, chaque crypto va sur un seul compte. Si le plan comptable a un sous-compte par wallet (par exemple 12617 Treasury, 12626 Liquidity Pool), choisissez-le ici. Le wallet garde alors ses propres lots (coût et date d’acquisition), et un transfert vers un autre wallet passe une écriture entre les deux comptes, au coût, sans gain ni perte. Laissez « — » pour garder le compte par crypto.
+              {locked ? ' Des écritures sont déjà validées : un wallet ne peut plus recevoir ou perdre son propre compte (seul le numéro de compte peut changer), pour ne pas modifier des écritures acceptées.' : ' À décider avant de valider les premières écritures.'}</p>
+            <div className="table-wrap"><table className="table">
+              <thead><tr><th>Wallet / source</th><th>Compte bexio</th></tr></thead>
+              <tbody>{srcs.map((s) => {
+                const k = walletAccountKey(s.id);
+                return (
+                  <tr key={s.id}><td><b>{s.label}</b> <span className="small muted">({s.provider})</span></td>
+                    <td><select name={`map:${k}`} defaultValue={mapped.get(k)?.toString() ?? ''} style={{ minWidth: 260 }}>
+                      <option value="">— compte par crypto</option>{accountOptions(k)}
+                    </select></td></tr>
+                );
+              })}</tbody>
+            </table></div>
+          </>}
           <button className="btn" type="submit">{t('common.save')}</button>
         </>}
       </form>

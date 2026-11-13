@@ -8,7 +8,7 @@ import { AppError, assertCanValidate, assertCanWrite, type Ctx } from '../contex
 import { decryptSecret, encryptSecret, randomToken } from '../crypto';
 import type { DB } from '../db';
 import {
-  accountMappings, bexioAccounts, bexioBusinessYears, bexioConnections, journalEntries, journalLines, oauthStates, syncAttempts,
+  accountMappings, bexioAccounts, bexioBusinessYears, bexioConnections, journalEntries, journalLines, oauthStates, sources, syncAttempts,
 } from '../db/schema';
 
 interface StoredTokens { accessToken: string; refreshToken: string | null; expiresAt: number }
@@ -108,11 +108,25 @@ export async function listMappings(ctx: Ctx) {
 }
 
 const KEY_PATTERN = /^(crypto_asset|fiat_clearing):([A-Z0-9*]{1,20})$/;
+const WALLET_KEY_PATTERN = /^crypto_asset:\*@([0-9a-f-]{36})$/;
 
 export async function setMapping(ctx: Ctx, key: string, bexioAccountId: number | null): Promise<void> {
   assertCanWrite(ctx);
-  if (!(ACCOUNT_KEYS as readonly string[]).includes(key) && !KEY_PATTERN.test(key)) throw new AppError('invalid', 'invalid_account_key');
+  const wallet = WALLET_KEY_PATTERN.exec(key)?.[1];
+  if (!(ACCOUNT_KEYS as readonly string[]).includes(key) && !KEY_PATTERN.test(key) && !wallet) throw new AppError('invalid', 'invalid_account_key');
   const [before] = await ctx.db.select().from(accountMappings).where(and(eq(accountMappings.orgId, ctx.orgId), eq(accountMappings.key, key)));
+  if ((before?.bexioAccountId ?? null) === bexioAccountId) return;
+  if (wallet) {
+    const [src] = await ctx.db.select({ id: sources.id }).from(sources).where(and(eq(sources.orgId, ctx.orgId), eq(sources.id, wallet)));
+    if (!src) throw new AppError('not_found', 'source_not_found');
+    // Giving a wallet its own account (or removing it) changes how lots are pooled and which accounts entries use.
+    // Validated entries are never rewritten silently, so the switch is refused once entries are validated.
+    if (!before || bexioAccountId === null) {
+      const [validated] = await ctx.db.select({ id: journalEntries.id }).from(journalEntries)
+        .where(and(eq(journalEntries.orgId, ctx.orgId), inArray(journalEntries.status, ['validated', 'synced', 'sync_failed']))).limit(1);
+      if (validated) throw new AppError('conflict', 'wallet_accounts_locked_by_validated_entries');
+    }
+  }
   if (bexioAccountId === null) {
     await ctx.db.delete(accountMappings).where(and(eq(accountMappings.orgId, ctx.orgId), eq(accountMappings.key, key)));
   } else {

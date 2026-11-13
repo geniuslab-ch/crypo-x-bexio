@@ -8,18 +8,26 @@ import { getI18n } from '@/i18n/server';
 import { requireCtx } from '@/server/auth/next';
 import { priceRates } from '@/server/db/schema';
 import { getPolicy, latestRun, listEntries, type RunIssue } from '@/server/services/calculation';
+import { listSources } from '@/server/services/imports';
 import { normalizeNumeric } from '@/server/services/transactions';
 
-const keyLabel = (k: string) => ACCOUNT_KEY_LABELS[k]?.fr ?? (k.startsWith('crypto_asset:') ? `Crypto ${k.slice(13)}` : k.startsWith('fiat_clearing:') ? `Fiat ${k.slice(14)} (exchange)` : k);
+const baseLabel = (k: string) => ACCOUNT_KEY_LABELS[k]?.fr ?? (k.startsWith('crypto_asset:') ? `Crypto ${k.slice(13)}` : k.startsWith('fiat_clearing:') ? `Fiat ${k.slice(14)} (exchange)` : k);
 
 export default async function AccountingPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string; show?: string }> }) {
   const sp = await searchParams;
   const { ctx } = await requireCtx();
   const { t, date } = await getI18n();
-  const [policy, run, entries, rates] = await Promise.all([
+  const [policy, run, entries, rates, srcs] = await Promise.all([
     getPolicy(ctx), latestRun(ctx), listEntries(ctx),
     ctx.db.select().from(priceRates).where(eq(priceRates.orgId, ctx.orgId)).orderBy(desc(priceRates.rateDate)).limit(30),
+    listSources(ctx),
   ]);
+  // Per-wallet keys (crypto_asset:OGY@<source>) are shown with the wallet's name.
+  const sourceName = new Map(srcs.map((s) => [s.id, s.label]));
+  const keyLabel = (k: string) => {
+    const at = k.indexOf('@');
+    return at === -1 ? baseLabel(k) : `${baseLabel(k.slice(0, at))} · ${sourceName.get(k.slice(at + 1)) ?? 'wallet'}`;
+  };
   const visible = entries.filter((e) => (sp.show === 'all' ? true : e.status !== 'superseded'));
   const issues = (run?.issues as RunIssue[] | undefined) ?? [];
   return (
