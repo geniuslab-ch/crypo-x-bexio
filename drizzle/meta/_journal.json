@@ -57,6 +57,13 @@
       "when": 1794641554573,
       "tag": "0007_reconciliation_platform_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794642412963,
+      "tag": "0008_bexio_vat_codes",
+      "breakpoints": true
     }
   ]
 }

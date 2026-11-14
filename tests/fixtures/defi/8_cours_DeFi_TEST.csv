@@ -1,0 +1,9 @@
+asset,date,rate_chf,source,source_url
+ETH,2025-05-01,1400,TEST fictif - cours inventé pour essai,
+ETH,2025-11-01,2500,TEST fictif - cours inventé pour essai,
+ETH,2025-12-31,2800,TEST fictif - cours inventé pour essai,
+USDC,2025-05-01,0.90,TEST fictif - cours inventé pour essai,
+USDC,2025-06-01,0.88,TEST fictif - cours inventé pour essai,
+USDC,2025-10-01,0.80,TEST fictif - cours inventé pour essai,
+USDC,2025-11-01,0.80,TEST fictif - cours inventé pour essai,
+USDC,2025-12-31,0.80,TEST fictif - cours inventé pour essai,

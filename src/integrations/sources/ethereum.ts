@@ -1,4 +1,5 @@
 import { D } from '@/core/decimal';
+import { defiHint, defiProtocol } from '@/core/defi';
 import type { Movement, ParsedTransaction, ParseIssue } from '@/core/types';
 import { outOfTime, requestJson, splitAddresses } from './http';
 import { ConnectorError, type FetchContext, type SourceConnector, type SyncState } from './types';
@@ -136,12 +137,21 @@ export function mapEthereum(addresses: string[], records: EthRecord[]): { transa
     const ins = movements.filter((m) => m.direction === 'in').length;
     const outs = movements.filter((m) => m.direction === 'out').length;
     const ts = Math.min(...rs.map((r) => Number(r.timeStamp)));
+    // Contract called by one of the own addresses: a documented DeFi protocol gives a better hint than the shape alone.
+    const called = rs.find((r) => r.kind === 'txlist' && own.has(r.from.toLowerCase()));
+    const protocol = failed ? null : defiProtocol(called?.to);
+    let protocolHint = protocol ? defiHint(protocol, movements) : null;
+    if (protocolHint && (unknownToken || nft) && protocolHint.confidence >= 0.8) {
+      // A swap involving an unrecognised token is still checked by a person.
+      protocolHint = { ...protocolHint, confidence: 0.6, reason: `${protocolHint.reason} (jeton non reconnu, à vérifier)` };
+    }
     transactions.push({
       externalId: hash, txHash: hash, occurredAt: new Date(ts * 1000),
       rawType: [...new Set(rs.map((r) => r.kind))].join('+') + (failed ? ':failed' : ''), movements,
       raw: rs.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !['input', 'logs'].includes(k)).map(([k, v]) => [k, String(v ?? '')]))),
       rowNumbers: [idx],
-      hint: nft
+      hint: protocolHint ? protocolHint
+        : nft
         ? { classification: 'unknown', confidence: 0.3, reason: ins && outs ? 'NFT acheté ou vendu : prix à vérifier' : 'Transfert de NFT : achat, vente, cadeau ou spam, à vérifier' }
         : unknownToken
         ? { classification: 'unknown', confidence: 0.2, reason: 'Jeton non reconnu (souvent du spam envoyé gratuitement) : à vérifier' }
@@ -164,7 +174,7 @@ export const ethereumConnector: SourceConnector = {
   support: 'partial',
   fields: [{ name: 'addresses', label: 'Adresses Ethereum publiques 0x… (une par ligne)', secret: false, multiline: true, placeholder: '0x…' }],
   help: 'Copiez l’adresse publique de votre wallet (MetaMask, Ledger, Trezor, Rabby…). Jamais de phrase de récupération ni de clé privée.',
-  limits: 'Réseau Ethereum principal : ETH, jetons ERC-20, NFT (ERC-721 et ERC-1155) et ETH reçus de contrats. Les swaps DeFi sont proposés comme échanges ; pools, prêts et NFT arrivent en revue pour validation. Pas encore : autres réseaux (Arbitrum, Base, Polygon…).',
+  limits: 'Réseau Ethereum principal : ETH, jetons ERC-20, NFT (ERC-721 et ERC-1155) et ETH reçus de contrats. Les swaps via les routeurs documentés (Uniswap, 1inch, 0x, CoW) et Lido sont proposés comme échanges ; pools de liquidité (Uniswap, Curve) et prêts (Aave, Compound) arrivent en revue avec le protocole reconnu, puis sont comptabilisés comme échange à la valeur de marché. Pas encore : autres réseaux (Arbitrum, Base, Polygon…).',
   async verify(creds, fx) {
     const list = splitAddresses(creds.addresses);
     if (list.length === 0) throw new ConnectorError('credentials_missing');

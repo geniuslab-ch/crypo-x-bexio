@@ -6,7 +6,7 @@ import { ACCOUNT_KEY_LABELS } from '@/i18n/dictionaries';
 import { getI18n } from '@/i18n/server';
 import { bexioConfig } from '@/integrations/bexio/oauth';
 import { requireCtx } from '@/server/auth/next';
-import { getConnection, listBexioAccounts, listMappings, listSyncAttempts } from '@/server/services/bexio';
+import { getConnection, listBexioAccounts, listBexioTaxes, listMappings, listSyncAttempts } from '@/server/services/bexio';
 import { listEntries } from '@/server/services/calculation';
 import { listSources } from '@/server/services/imports';
 import { getOrgProfile } from '@/server/services/organization';
@@ -15,9 +15,13 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const { ctx } = await requireCtx();
   const { t, date } = await getI18n();
-  const [conn, accounts, mappings, attempts, entries, org, srcs] = await Promise.all([
+  const [conn, accounts, mappings, attempts, entries, org, srcs, taxes] = await Promise.all([
     getConnection(ctx), listBexioAccounts(ctx), listMappings(ctx), listSyncAttempts(ctx), listEntries(ctx, ['validated', 'sync_failed', 'synced']), getOrgProfile(ctx), listSources(ctx),
+    listBexioTaxes(ctx),
   ]);
+  const vatOf = new Map(mappings.map((m) => [m.key, m.bexioTaxId]));
+  // VAT is booked on income and expense accounts only, never on crypto, exchange or transfer accounts.
+  const vatKey = (k: string) => !/^(crypto_asset|fiat_clearing):|^bank_clearing$|^external_|^foundation_capital$/.test(k);
   const configured = !!bexioConfig();
   const mapped = new Map(mappings.map((m) => [m.key, m.bexioAccountId]));
   // Asset-specific keys that already exist in entries can be mapped individually.
@@ -56,15 +60,20 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
         <p className="small muted">{t('bx.mappingIntro')}</p>
         {accounts.length === 0 ? <p className="muted">{t('bx.noAccounts')}</p> : <>
           <div className="table-wrap"><table className="table">
-            <thead><tr><th>Catégorie Crypto2Books</th><th>Exemple</th><th>Compte bexio</th></tr></thead>
+            <thead><tr><th>Catégorie Crypto2Books</th><th>Exemple</th><th>Compte bexio</th>{taxes.length > 0 && <th>Code TVA (optionnel)</th>}</tr></thead>
             <tbody>{keys.map((k) => (
               <tr key={k}><td><b>{label(k)}</b><div className="mono small muted">{k}</div></td><td className="small muted">{ACCOUNT_KEY_LABELS[k]?.example ?? (k.endsWith(':*') ? '' : 'sinon : compte générique')}</td>
                 <td><select name={`map:${k}`} defaultValue={mapped.get(k)?.toString() ?? ''} style={{ minWidth: 260 }}>
                   <option value="">—</option>
                   {accounts.filter((a) => a.isActive || mapped.get(k) === a.bexioId).map((a) => <option key={a.bexioId} value={a.bexioId}>{a.accountNo} · {a.name}{a.isActive ? '' : ' (inactif)'}</option>)}
-                </select></td></tr>
+                </select></td>
+                {taxes.length > 0 && <td>{vatKey(k) && <select name={`vat:${k}`} defaultValue={vatOf.get(k)?.toString() ?? ''} style={{ minWidth: 200 }}>
+                  <option value="">— sans TVA</option>
+                  {taxes.filter((x) => x.isActive || vatOf.get(k) === x.bexioId).map((x) => <option key={x.bexioId} value={x.bexioId}>{x.code} · {x.name} · {Number(x.value)} %{x.type === 'pre_tax' ? ' (impôt préalable)' : ''}</option>)}
+                </select>}</td>}</tr>
             ))}</tbody>
           </table></div>
+          {taxes.length > 0 && <p className="small muted">Codes TVA : ceux de votre bexio, avec les noms et taux que vous leur avez donnés ({taxes.length} chargés). Laissez « — sans TVA » pour les opérations hors champ ou exclues (achat, vente et échange de cryptos : art. 21 al. 2 ch. 19 LTVA). Choisissez un code pour un compte de produit ou de charge soumis, par exemple des services de minage ou de validation facturés, ou des frais avec impôt préalable. Le code s’applique à chaque ligne de ce compte envoyée à bexio.</p>}
           {srcs.length > 0 && <>
             <h3 style={{ marginBottom: 0 }}>Comptes par wallet (facultatif)</h3>
             <p className="small muted">Par défaut, chaque crypto va sur un seul compte. Si le plan comptable a un sous-compte par wallet (par exemple 12617 Treasury, 12626 Liquidity Pool), choisissez-le ici. Le wallet garde alors ses propres lots (coût et date d’acquisition), et un transfert vers un autre wallet passe une écriture entre les deux comptes, au coût, sans gain ni perte. Laissez « — » pour garder le compte par crypto.

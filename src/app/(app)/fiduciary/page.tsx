@@ -4,6 +4,7 @@ import { getI18n } from '@/i18n/server';
 import { requireCtx } from '@/server/auth/next';
 import { orgProfiles } from '@/server/services/organization';
 import { requestTotals } from '@/server/services/platformRequests';
+import { fiduciaryOverview } from '@/server/services/dashboard';
 import { LEGAL_FORMS } from '@/core/legalForms';
 
 export default async function FiduciaryPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
@@ -11,6 +12,7 @@ export default async function FiduciaryPage({ searchParams }: { searchParams: Pr
   const { session, ctx } = await requireCtx();
   const { t } = await getI18n();
   const profiles = await orgProfiles(ctx.db, session.orgs.map((o) => o.id));
+  const overview = await fiduciaryOverview(ctx.db, ctx.userId, session.orgs.map((o) => ({ id: o.id, name: o.name, role: o.role })));
   const requests = await requestTotals(ctx, session.orgs.map((o) => o.id));
   return (
     <div className="stack">
@@ -35,6 +37,21 @@ export default async function FiduciaryPage({ searchParams }: { searchParams: Pr
           <label>{t('auth.canton')}<input name="canton" maxLength={2} /></label>
           <button className="btn btn-primary" type="submit">{t('fid.addClient')}</button>
         </form>
+      </div>
+      <div className="card">
+        <h2>{t('fid.overview')}</h2>
+        <div className="table-wrap"><table className="table">
+          <thead><tr><th>{t('fid.clients')}</th><th className="num">{t('fid.col.review')}</th><th className="num">{t('fid.col.drafts')}</th><th className="num">{t('fid.col.toSync')}</th>
+            <th className="num">{t('fid.col.failed')}</th><th className="num">{t('fid.col.gaps')}</th><th>{t('fid.col.closed')}</th></tr></thead>
+          <tbody>{overview.map((o) => (
+            <tr key={o.orgId}>
+              <td><b>{o.name}</b></td>
+              <td className={`num ${o.toReview ? 'neg' : ''}`}>{o.toReview}</td><td className="num">{o.drafts}</td><td className="num">{o.toSync}</td>
+              <td className={`num ${o.syncFailed ? 'neg' : ''}`}>{o.syncFailed}</td><td className={`num ${o.reconciliationGaps ? 'neg' : ''}`}>{o.reconciliationGaps}</td>
+              <td>{o.lastClosedYear ?? '—'} {o.previousYearClosed ? '✓' : ''}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
       </div>
       <div className="card">
         <h2>{t('req.list')}</h2>

@@ -51,6 +51,9 @@ export const BOOKABLE_CLASSIFICATIONS: ReadonlySet<Classification> = new Set<Cla
   'endowment_received',
   'grant_paid',
   'opening_balance',
+  // DeFi operations confirmed by a person: exchange at market value (see src/core/defi.ts).
+  'defi',
+  'liquidity_pool',
 ]);
 
 /** Gifts received and given (donations, foundation endowments, grants paid for the purpose). */
@@ -92,7 +95,8 @@ export interface ParsedTransaction {
   txHash?: string | null;
   note?: string | null;
   /** Classification suggested by the parser from the source's own type label. */
-  hint?: { classification: Classification; confidence: number; reason: string } | null;
+  /** `decisive`: the source knows better than the shape of the movements (e.g. a documented DeFi contract), even when its confidence is low. */
+  hint?: { classification: Classification; confidence: number; reason: string; decisive?: boolean } | null;
   /** CHF value stated in the source file itself for the principal crypto leg (evidence from source). */
   sourceChfValue?: string | null;
 }
