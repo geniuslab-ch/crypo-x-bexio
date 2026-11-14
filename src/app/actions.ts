@@ -125,7 +125,9 @@ export async function forgotPasswordAction(form: FormData) {
       const t = translator(r.locale);
       const link = `${origin}/reset-password?token=${encodeURIComponent(r.token)}`;
       const messageId = await sendMail({ to: r.email, subject: t('pw.mailSubject'), text: fill(t('pw.mailBody'), { name: r.name ?? '', email: r.email, link }) });
-      await audit(db, { orgId: null, actorUserId: r.userId, action: 'user.password_reset_mail_sent', entity: 'user', entityId: r.userId, after: { messageId } });
+      // Sent: a failure to record it must not be reported as a failed delivery.
+      await audit(db, { orgId: null, actorUserId: r.userId, action: 'user.password_reset_mail_sent', entity: 'user', entityId: r.userId, after: { messageId } })
+        .catch((e) => console.error('password reset e-mail sent, audit write failed', e));
     } catch (e) {
       // Nothing reaches the user here (same answer for every address), so keep the reason in the log and the audit trail.
       const reason = e instanceof Error ? e.message.slice(0, 400) : String(e).slice(0, 400);
