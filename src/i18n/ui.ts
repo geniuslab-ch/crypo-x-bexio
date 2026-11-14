@@ -4,6 +4,22 @@
  * Placeholders like {n} are filled with `fill()`.
  */
 export const UI_FR = {
+  'set.policy.edit': 'Modifier les méthodes',
+  'set.policy.cancel': 'Annuler',
+  'set.policy.defaults': 'Valeurs par défaut',
+  'set.policy.confirm': 'J’ai compris, modifier',
+  'set.policy.noChange': 'Aucune modification à enregistrer',
+  'set.policy.savedState': 'Choix enregistré. Les méthodes restent verrouillées pour éviter un changement par mégarde : cliquez sur « Modifier les méthodes » pour les changer.',
+  'set.policy.warnTitle': 'Un changement de méthode modifie votre comptabilité',
+  'set.policy.lockedTitle': 'La méthode et le traitement des frais sont verrouillés',
+  'set.policy.warnDrafts': 'Les écritures en brouillon ({n}) seront recalculées avec la nouvelle méthode au prochain calcul : coûts d’acquisition, plus-values, moins-values et frais changent. Les anciennes versions restent dans l’historique comme « remplacées ».',
+  'set.policy.warnWindow': 'Changer la fenêtre de rapprochement reclasse les transferts internes des transactions non verrouillées.',
+  'set.policy.warnReview': 'La validation fiduciaire de la politique est annulée : votre fiduciaire devra la revoir.',
+  'set.policy.warnPermanence': 'Gardez la même méthode d’un exercice à l’autre (permanence des méthodes, CO art. 958c al. 1 ch. 6). Dès qu’une écriture est validée ou qu’un exercice est clôturé, la méthode ne peut plus changer.',
+  'set.policy.lockedValidated': '{n} écriture(s) déjà validée(s) ou envoyée(s) à bexio. Une écriture validée n’est jamais modifiée automatiquement : changer de méthode rendrait ces écritures incohérentes avec les suivantes.',
+  'set.policy.lockedClosed': 'L’exercice {year} est clôturé avec la méthode actuelle : ses transactions et ses écritures ne changent plus, et les exercices suivants doivent garder la même méthode. Pour changer quand même, il faut d’abord rouvrir l’exercice (page Clôture) et extourner les écritures validées concernées, avec votre fiduciaire.',
+  'set.policy.windowOnly': 'Seule la fenêtre de rapprochement des transferts reste modifiable. Elle ne touche pas les transactions verrouillées (écritures validées, exercices clôturés).',
+
   'pw.forgot': 'Mot de passe oublié ?',
   'pw.forgotTitle': 'Mot de passe oublié',
   'pw.forgotIntro': 'Indiquez l’e-mail de votre compte. Nous vous envoyons un lien pour choisir un nouveau mot de passe, valable une heure.',
@@ -150,6 +166,22 @@ export type UiKey = keyof typeof UI_FR;
 type UiDict = Record<UiKey, string>;
 
 export const UI_DE: UiDict = {
+  'set.policy.edit': 'Methoden ändern',
+  'set.policy.cancel': 'Abbrechen',
+  'set.policy.defaults': 'Standardwerte',
+  'set.policy.confirm': 'Verstanden, ändern',
+  'set.policy.noChange': 'Keine Änderung zu speichern',
+  'set.policy.savedState': 'Auswahl gespeichert. Die Methoden bleiben gesperrt, damit sie nicht versehentlich geändert werden: Klicken Sie auf «Methoden ändern», um sie anzupassen.',
+  'set.policy.warnTitle': 'Ein Methodenwechsel verändert Ihre Buchhaltung',
+  'set.policy.lockedTitle': 'Methode und Gebührenbehandlung sind gesperrt',
+  'set.policy.warnDrafts': 'Die Buchungsentwürfe ({n}) werden bei der nächsten Berechnung mit der neuen Methode neu berechnet: Anschaffungskosten, Gewinne, Verluste und Gebühren ändern sich. Die alten Fassungen bleiben als «ersetzt» im Verlauf.',
+  'set.policy.warnWindow': 'Eine Änderung des Zeitfensters klassiert die internen Transfers der nicht gesperrten Transaktionen neu.',
+  'set.policy.warnReview': 'Die Freigabe der Richtlinie durch den Treuhänder wird aufgehoben: Ihr Treuhänder muss sie erneut prüfen.',
+  'set.policy.warnPermanence': 'Behalten Sie dieselbe Methode von Jahr zu Jahr bei (Stetigkeit, OR Art. 958c Abs. 1 Ziff. 6). Sobald eine Buchung freigegeben oder ein Geschäftsjahr abgeschlossen ist, kann die Methode nicht mehr geändert werden.',
+  'set.policy.lockedValidated': '{n} Buchung(en) bereits freigegeben oder an bexio gesendet. Eine freigegebene Buchung wird nie automatisch geändert: Ein Methodenwechsel würde diese Buchungen mit den folgenden unvereinbar machen.',
+  'set.policy.lockedClosed': 'Das Geschäftsjahr {year} ist mit der aktuellen Methode abgeschlossen: Seine Transaktionen und Buchungen ändern sich nicht mehr, und die folgenden Jahre müssen dieselbe Methode behalten. Für einen Wechsel muss das Geschäftsjahr zuerst wieder eröffnet (Seite Abschluss) und die betroffenen freigegebenen Buchungen mit Ihrem Treuhänder storniert werden.',
+  'set.policy.windowOnly': 'Nur das Zeitfenster für den Transferabgleich bleibt änderbar. Es betrifft keine gesperrten Transaktionen (freigegebene Buchungen, abgeschlossene Jahre).',
+
   'pw.forgot': 'Passwort vergessen?',
   'pw.forgotTitle': 'Passwort vergessen',
   'pw.forgotIntro': 'Geben Sie die E-Mail Ihres Kontos an. Wir senden Ihnen einen Link, mit dem Sie ein neues Passwort wählen können. Er ist eine Stunde gültig.',
@@ -293,6 +325,22 @@ export const UI_DE: UiDict = {
 };
 
 export const UI_IT: UiDict = {
+  'set.policy.edit': 'Modifica i metodi',
+  'set.policy.cancel': 'Annulla',
+  'set.policy.defaults': 'Valori predefiniti',
+  'set.policy.confirm': 'Ho capito, modifica',
+  'set.policy.noChange': 'Nessuna modifica da registrare',
+  'set.policy.savedState': 'Scelta registrata. I metodi restano bloccati per evitare un cambiamento involontario: cliccate su «Modifica i metodi» per cambiarli.',
+  'set.policy.warnTitle': 'Un cambiamento di metodo modifica la vostra contabilità',
+  'set.policy.lockedTitle': 'Il metodo e il trattamento delle commissioni sono bloccati',
+  'set.policy.warnDrafts': 'Le registrazioni in bozza ({n}) saranno ricalcolate con il nuovo metodo al prossimo calcolo: costi di acquisto, utili, perdite e commissioni cambiano. Le vecchie versioni restano nello storico come «sostituite».',
+  'set.policy.warnWindow': 'Cambiare la finestra di abbinamento riclassifica i trasferimenti interni delle transazioni non bloccate.',
+  'set.policy.warnReview': 'La convalida della politica da parte della fiduciaria è annullata: la vostra fiduciaria dovrà rivederla.',
+  'set.policy.warnPermanence': 'Mantenete lo stesso metodo da un esercizio all’altro (costanza dei metodi, CO art. 958c cpv. 1 n. 6). Appena una registrazione è convalidata o un esercizio è chiuso, il metodo non può più cambiare.',
+  'set.policy.lockedValidated': '{n} registrazione/i già convalidata/e o inviata/e a bexio. Una registrazione convalidata non viene mai modificata automaticamente: cambiare metodo renderebbe queste registrazioni incoerenti con le successive.',
+  'set.policy.lockedClosed': 'L’esercizio {year} è chiuso con il metodo attuale: le sue transazioni e registrazioni non cambiano più, e gli esercizi successivi devono mantenere lo stesso metodo. Per cambiarlo comunque occorre prima riaprire l’esercizio (pagina Chiusura) e stornare le registrazioni convalidate interessate, con la vostra fiduciaria.',
+  'set.policy.windowOnly': 'Resta modificabile solo la finestra di abbinamento dei trasferimenti. Non tocca le transazioni bloccate (registrazioni convalidate, esercizi chiusi).',
+
   'pw.forgot': 'Password dimenticata?',
   'pw.forgotTitle': 'Password dimenticata',
   'pw.forgotIntro': 'Indicate l’e-mail del vostro account. Vi inviamo un link per scegliere una nuova password, valido un’ora.',
@@ -436,6 +484,22 @@ export const UI_IT: UiDict = {
 };
 
 export const UI_EN: UiDict = {
+  'set.policy.edit': 'Change the methods',
+  'set.policy.cancel': 'Cancel',
+  'set.policy.defaults': 'Default values',
+  'set.policy.confirm': 'I understand, change',
+  'set.policy.noChange': 'Nothing to save',
+  'set.policy.savedState': 'Choice saved. The methods stay locked so they are not changed by mistake: click “Change the methods” to change them.',
+  'set.policy.warnTitle': 'Changing the method changes your accounting',
+  'set.policy.lockedTitle': 'The method and the fee treatment are locked',
+  'set.policy.warnDrafts': 'Draft entries ({n}) will be recalculated with the new method at the next calculation: acquisition costs, gains, losses and fees change. The old versions stay in the history as “superseded”.',
+  'set.policy.warnWindow': 'Changing the matching window reclassifies the internal transfers of unlocked transactions.',
+  'set.policy.warnReview': 'The fiduciary approval of the policy is cancelled: your fiduciary will have to review it again.',
+  'set.policy.warnPermanence': 'Keep the same method from one year to the next (consistency, CO art. 958c para. 1 no. 6). As soon as an entry is approved or a year is closed, the method can no longer change.',
+  'set.policy.lockedValidated': '{n} entry(ies) already approved or sent to bexio. An approved entry is never changed automatically: changing the method would make these entries inconsistent with the later ones.',
+  'set.policy.lockedClosed': 'The {year} financial year is closed with the current method: its transactions and entries no longer change, and the following years must keep the same method. To change it anyway, first reopen the year (Closing page) and reverse the approved entries concerned, with your fiduciary.',
+  'set.policy.windowOnly': 'Only the transfer matching window can still change. It does not touch locked transactions (approved entries, closed years).',
+
   'pw.forgot': 'Forgot your password?',
   'pw.forgotTitle': 'Forgot your password',
   'pw.forgotIntro': 'Enter the e-mail of your account. We will send you a link to choose a new password, valid for one hour.',

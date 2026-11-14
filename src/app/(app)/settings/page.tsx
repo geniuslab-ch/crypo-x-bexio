@@ -1,9 +1,11 @@
 import { markPolicyReviewedAction, setLocaleAction, updateLegalFormAction, updatePolicyAction } from '@/app/actions';
 import { LEGAL_FORMS, taxNotes } from '@/core/legalForms';
 import { Flash } from '@/components/Flash';
+import { PolicyForm } from '@/components/PolicyForm';
 import { getI18n } from '@/i18n/server';
+import { fill } from '@/i18n/ui';
 import { requireCtx } from '@/server/auth/next';
-import { getPolicy } from '@/server/services/calculation';
+import { getPolicy, policyLockState } from '@/server/services/calculation';
 import { getOrgProfile } from '@/server/services/organization';
 
 /** Official sources. Fedlex is published in fr/de/it (and en for some acts); the ESTV paper is in German. */
@@ -49,21 +51,40 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const p = await getPolicy(ctx);
   const org = await getOrgProfile(ctx);
   const notes = taxNotes(org.kind, org.taxStatus, locale);
+  const lock = await policyLockState(ctx);
+  const lockNotes = [
+    ...(lock.validated > 0 ? [fill(t('set.policy.lockedValidated'), { n: lock.validated })] : []),
+    ...(lock.closedYear !== null ? [fill(t('set.policy.lockedClosed'), { year: lock.closedYear })] : []),
+    ...(lock.methodLocked ? [t('set.policy.windowOnly')] : []),
+  ];
+  const warnings = lock.methodLocked
+    ? [t('set.policy.warnReview')]
+    : [fill(t('set.policy.warnDrafts'), { n: lock.drafts }), t('set.policy.warnWindow'), t('set.policy.warnReview'), t('set.policy.warnPermanence')];
   return (
     <div className="stack">
       <div className="page-head"><div><h1>{t('set.title')}</h1></div></div>
       <Flash ok={sp.ok} error={sp.error} locale={locale} />
       <div className="alert alert-warn small">{t('set.disclaimer')}</div>
       <div className="grid grid-2">
-        <form action={updatePolicyAction} className="card stack">
+        <div className="card stack">
           <h2>{t('acc.policy')}</h2>
-          <label>{t('acc.method')}<select name="costBasisMethod" defaultValue={p.costBasisMethod}><option value="fifo">{t('set.fifo')}</option><option value="wac">{t('set.wac')}</option></select></label>
-          <label>{t('acc.fees')}<select name="tradingFeeTreatment" defaultValue={p.tradingFeeTreatment}><option value="capitalize">{t('acc.fees.capitalize')}</option><option value="expense">{t('acc.fees.expense')}</option></select></label>
-          <label>{t('set.window')}<input type="number" name="transferWindowHours" min={1} max={720} defaultValue={p.transferWindowHours} /></label>
-          <button className="btn btn-primary" type="submit">{t('common.save')}</button>
+          <PolicyForm
+            key={`${p.costBasisMethod}|${p.tradingFeeTreatment}|${p.transferWindowHours}|${p.updatedAt.toISOString()}|${lock.everSaved}`}
+            action={updatePolicyAction}
+            saved={{ costBasisMethod: p.costBasisMethod, tradingFeeTreatment: p.tradingFeeTreatment, transferWindowHours: p.transferWindowHours }}
+            everSaved={lock.everSaved}
+            methodLocked={lock.methodLocked}
+            texts={{
+              method: t('acc.method'), fifo: t('set.fifo'), wac: t('set.wac'), fees: t('acc.fees'),
+              capitalize: t('acc.fees.capitalize'), expense: t('acc.fees.expense'), window: t('set.window'),
+              save: t('common.save'), edit: t('set.policy.edit'), cancel: t('set.policy.cancel'), defaults: t('set.policy.defaults'),
+              confirm: t('set.policy.confirm'), noChange: t('set.policy.noChange'), savedState: t('set.policy.savedState'),
+              warnTitle: t(lock.methodLocked ? 'set.policy.lockedTitle' : 'set.policy.warnTitle'), warnings, lockNotes,
+            }}
+          />
           <p className="small muted">{t('set.policyHint')}</p>
           <div className="row">{p.reviewedByFiduciaryAt ? <span className="badge badge-ok">{t('acc.reviewed')} {date(p.reviewedByFiduciaryAt)}</span> : <span className="badge badge-warn">{t('acc.notReviewed')}</span>}</div>
-        </form>
+        </div>
         <div className="stack">
           <form action={updateLegalFormAction} className="card stack">
             <h2>{t('set.legal')}</h2>
