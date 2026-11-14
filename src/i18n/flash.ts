@@ -4,6 +4,10 @@
  */
 export const FLASH_MESSAGES: Record<string, Record<string, string>> = {
   de: {
+    reset_link_sent: 'Falls ein Konto mit dieser E-Mail besteht, wurde soeben ein Link gesendet. Prüfen Sie auch den Spam-Ordner.',
+    reset_link_invalid: 'Dieser Link ist nicht mehr gültig: Er wurde bereits verwendet oder ist abgelaufen. Fordern Sie einen neuen an.',
+    password_reset_done: 'Passwort geändert. Melden Sie sich mit dem neuen Passwort an.',
+    mail_not_configured: 'Der E-Mail-Versand ist auf diesem Server noch nicht eingerichtet. Kontaktieren Sie den Support.',
     invalid_credentials: 'E-Mail oder Passwort falsch.',
     too_many_attempts: 'Zu viele Versuche. Bitte in 15 Minuten erneut versuchen.',
     password_mismatch: 'Die beiden Passwörter stimmen nicht überein.',
@@ -74,6 +78,10 @@ export const FLASH_MESSAGES: Record<string, Record<string, string>> = {
     opening_deleted: 'Eröffnungssaldo gelöscht.',
   },
   it: {
+    reset_link_sent: 'Se esiste un account con questa e-mail, è appena stato inviato un link. Controllate anche la posta indesiderata.',
+    reset_link_invalid: 'Questo link non è più valido: è già stato usato o è scaduto. Richiedetene uno nuovo.',
+    password_reset_done: 'Password modificata. Accedete con la nuova password.',
+    mail_not_configured: 'L’invio di e-mail non è ancora configurato su questo server. Contattate il supporto.',
     invalid_credentials: 'E-mail o password errati.',
     too_many_attempts: 'Troppi tentativi. Riprovate tra 15 minuti.',
     password_mismatch: 'Le due password non corrispondono.',
@@ -144,6 +152,10 @@ export const FLASH_MESSAGES: Record<string, Record<string, string>> = {
     opening_deleted: 'Saldo d’apertura eliminato.',
   },
   en: {
+    reset_link_sent: 'If an account exists with this e-mail, a link has just been sent to it. Check your spam folder too.',
+    reset_link_invalid: 'This link is no longer valid: it has already been used or has expired. Request a new one.',
+    password_reset_done: 'Password changed. Sign in with your new password.',
+    mail_not_configured: 'Sending e-mail is not set up on this server yet. Please contact support.',
     invalid_credentials: 'Incorrect e-mail or password.',
     too_many_attempts: 'Too many attempts. Try again in 15 minutes.',
     password_mismatch: 'The two passwords do not match.',

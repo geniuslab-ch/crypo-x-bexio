@@ -1,5 +1,5 @@
 import { hash, verify } from '@node-rs/argon2';
-import { and, eq, gt, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { LEGAL_FORMS } from '@/core/legalForms';
 import { audit } from '../audit';
@@ -7,9 +7,10 @@ import { AppError, type Role } from '../context';
 import { hashToken, randomToken } from '../crypto';
 import type { DB } from '../db';
 import { legalFormColumns } from '../services/organization';
-import { accountingPolicies, memberships, organizations, sessions, subscriptions, users } from '../db/schema';
+import { accountingPolicies, memberships, organizations, passwordResets, sessions, subscriptions, users } from '../db/schema';
 
 const SESSION_DAYS = 14;
+const RESET_MINUTES = 60;
 const TRIAL_DAYS = Number(process.env.TRIAL_DAYS ?? 30);
 
 export const registerSchema = z.object({
@@ -113,4 +114,67 @@ export async function switchOrg(db: DB, sessionId: string, userId: string, orgId
   const [m] = await db.select().from(memberships).where(and(eq(memberships.userId, userId), eq(memberships.orgId, orgId)));
   if (!m) throw new AppError('forbidden', 'not_a_member');
   await db.update(sessions).set({ activeOrgId: orgId }).where(eq(sessions.id, sessionId));
+}
+
+// ---------- Password reset ----------
+
+const passwordSchema = z.string().min(10, 'password_too_short').max(200);
+
+/** At most 3 reset e-mails per address every 15 minutes (per process, like the login throttle). */
+const resetRequests = new Map<string, { count: number; until: number }>();
+
+export interface ResetRequest { token: string; email: string; name: string | null; locale: string }
+
+/**
+ * Creates a one-time reset link for this e-mail. Returns null when no account uses it, so the caller
+ * shows the same answer either way and never reveals whether an address is registered.
+ */
+/** Counts a reset request for this address; throws too_many_attempts past 3 in 15 minutes. Same for known and unknown addresses. */
+export function throttleResetRequest(email: string): void {
+  const key = email.trim().toLowerCase();
+  if (!key || key.length > 254) throw new AppError('invalid', 'invalid_input');
+  const r = resetRequests.get(key);
+  const live = r && r.until > Date.now();
+  if (live && r.count >= 3) throw new AppError('forbidden', 'too_many_attempts');
+  resetRequests.set(key, { count: live ? r.count + 1 : 1, until: live ? r.until : Date.now() + 15 * 60_000 });
+}
+
+export async function requestPasswordReset(db: DB, email: string): Promise<ResetRequest | null> {
+  const key = email.trim().toLowerCase();
+  const [u] = await db.select().from(users).where(sql`lower(${users.email}) = ${key}`);
+  if (!u) return null;
+  const token = randomToken();
+  await db.insert(passwordResets).values({ userId: u.id, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + RESET_MINUTES * 60_000) });
+  await audit(db, { orgId: null, actorUserId: u.id, action: 'user.password_reset_requested', entity: 'user', entityId: u.id });
+  return { token, email: u.email, name: u.name, locale: u.locale };
+}
+
+/** True when the link can still be used (shown before the new-password form). */
+export async function isResetTokenValid(db: DB, token: string): Promise<boolean> {
+  if (!token) return false;
+  const [row] = await db.select({ id: passwordResets.id }).from(passwordResets)
+    .where(and(eq(passwordResets.tokenHash, hashToken(token)), isNull(passwordResets.usedAt), gt(passwordResets.expiresAt, new Date())));
+  return Boolean(row);
+}
+
+/** Sets the new password, burns every open reset link of the user and logs out all their sessions. */
+export async function resetPassword(db: DB, token: string, password: string): Promise<{ userId: string; email: string }> {
+  const pw = passwordSchema.parse(password);
+  // Reject unknown or spent links before the costly Argon2 hash, so made-up tokens cost the server nothing.
+  if (!(await isResetTokenValid(db, token))) throw new AppError('forbidden', 'reset_link_invalid');
+  const passwordHash = await hash(pw);
+  return db.transaction(async (tx) => {
+    const now = new Date();
+    // Marking the row used in the same statement that checks it makes a link single-use even under concurrent submits.
+    const [row] = await tx.update(passwordResets).set({ usedAt: now })
+      .where(and(eq(passwordResets.tokenHash, hashToken(token)), isNull(passwordResets.usedAt), gt(passwordResets.expiresAt, now)))
+      .returning({ userId: passwordResets.userId });
+    if (!row) throw new AppError('forbidden', 'reset_link_invalid');
+    const [u] = await tx.update(users).set({ passwordHash }).where(eq(users.id, row.userId)).returning({ id: users.id, email: users.email });
+    await tx.update(passwordResets).set({ usedAt: now }).where(and(eq(passwordResets.userId, row.userId), isNull(passwordResets.usedAt)));
+    await tx.delete(sessions).where(eq(sessions.userId, row.userId));
+    await audit(tx, { orgId: null, actorUserId: row.userId, action: 'user.password_reset', entity: 'user', entityId: row.userId });
+    attempts.delete(u!.email.toLowerCase());
+    return { userId: u!.id, email: u!.email };
+  });
 }

@@ -19,6 +19,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <label>{t('auth.password')}<input name="password" type="password" autoComplete="current-password" required /></label>
         <button className="btn btn-primary" type="submit">{t('auth.login')}</button>
       </form>
+      <p className="small" style={{ marginTop: -4 }}><Link href="/forgot-password">{t('pw.forgot')}</Link></p>
       <p className="small muted">{t('auth.noAccount')} <Link href="/register">{t('auth.register')}</Link></p>
     </div>
   );

@@ -3,12 +3,16 @@
 import { eq } from 'drizzle-orm';
 import { safeNextPath } from '@/server/auth/nextPath';
 import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { isLegalForm, isTaxStatus, type LegalForm } from '@/core/legalForms';
 import { CLASSIFICATIONS, type Classification } from '@/core/types';
 import { clearSessionCookie, requireCtx, SESSION_COOKIE, setSessionCookie } from '@/server/auth/next';
-import { login, logout, registerUser, switchOrg } from '@/server/auth/service';
+import { login, logout, registerUser, requestPasswordReset, resetPassword, switchOrg, throttleResetRequest } from '@/server/auth/service';
+import { mailConfigured, sendMail } from '@/server/mail';
+import { translator } from '@/i18n/dictionaries';
+import { fill } from '@/i18n/ui';
 import { audit } from '@/server/audit';
 import { BexioHttpError } from '@/integrations/bexio/client';
 import { AppError } from '@/server/context';
@@ -92,6 +96,51 @@ export async function loginAction(form: FormData) {
     back(next === '/dashboard' ? '/login' : `/login?next=${encodeURIComponent(next)}`, 'error', msg(e));
   }
   redirect(next);
+}
+
+/** Public origin for links sent by e-mail: APP_URL in production, else the host the request came in on. */
+async function publicOrigin(): Promise<string> {
+  const app = process.env.APP_URL?.replace(/\/+$/, '');
+  if (app) return app;
+  const h = await headers();
+  return `${h.get('x-forwarded-proto') ?? 'http'}://${h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3000'}`;
+}
+
+export async function forgotPasswordAction(form: FormData) {
+  if (!mailConfigured()) back('/forgot-password', 'error', 'mail_not_configured');
+  const email = String(form.get('email') ?? '');
+  try {
+    throttleResetRequest(email);
+  } catch (e) {
+    back('/forgot-password', 'error', msg(e));
+  }
+  const origin = await publicOrigin();
+  // Lookup and delivery run after the response: known and unknown addresses get the same answer in the same time.
+  after(async () => {
+    try {
+      const r = await requestPasswordReset(getDb(), email);
+      if (!r) return;
+      const t = translator(r.locale);
+      const link = `${origin}/reset-password?token=${encodeURIComponent(r.token)}`;
+      await sendMail({ to: r.email, subject: t('pw.mailSubject'), text: fill(t('pw.mailBody'), { name: r.name ?? '', email: r.email, link }) });
+    } catch (e) {
+      console.error('password reset e-mail failed', e);
+    }
+  });
+  back('/forgot-password', 'ok', 'reset_link_sent');
+}
+
+export async function resetPasswordAction(form: FormData) {
+  const token = String(form.get('token') ?? '');
+  const here = `/reset-password?token=${encodeURIComponent(token)}`;
+  if (String(form.get('password') ?? '') !== String(form.get('passwordConfirm') ?? '')) back(here, 'error', 'password_mismatch');
+  try {
+    await resetPassword(getDb(), token, String(form.get('password') ?? ''));
+  } catch (e) {
+    back(here, 'error', msg(e));
+  }
+  await clearSessionCookie();
+  back('/login', 'ok', 'password_reset_done');
 }
 
 export async function logoutAction() {

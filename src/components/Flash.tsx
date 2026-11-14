@@ -1,6 +1,10 @@
 import { FLASH_LABELS, FLASH_MESSAGES, FLASH_PLATFORM } from '@/i18n/flash';
 
 const MESSAGES: Record<string, string> = {
+  reset_link_sent: 'Si un compte existe avec cet e-mail, un lien vient de lui être envoyé. Pensez à vérifier les indésirables.',
+  reset_link_invalid: 'Ce lien n’est plus valable : il a déjà servi ou il a expiré. Demandez-en un nouveau.',
+  password_reset_done: 'Mot de passe modifié. Connectez-vous avec le nouveau mot de passe.',
+  mail_not_configured: 'L’envoi d’e-mails n’est pas encore configuré sur ce serveur. Contactez le support.',
   invalid_credentials: 'E-mail ou mot de passe incorrect.',
   too_many_attempts: 'Trop de tentatives. Réessayez dans 15 minutes.',
   password_mismatch: 'Les deux mots de passe ne correspondent pas.',
