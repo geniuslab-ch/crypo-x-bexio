@@ -8,7 +8,9 @@ import './landing.css';
 export function Landing({ locale, loggedIn }: { locale: Locale; loggedIn: boolean }) {
   const c = LANDING[locale];
   const year = new Date().getFullYear();
-  const start = loggedIn ? '/dashboard' : '/register';
+  // Auth pages read the language from the cookie: go through /api/locale so /de opens the German form.
+  const via = (path: string) => `/api/locale?l=${locale}&next=${path}`;
+  const start = loggedIn ? '/dashboard' : via('/register');
   const startLabel = loggedIn ? c.nav.open : c.hero.cta;
   return (
     <div className="lp" lang={locale}>
@@ -26,7 +28,7 @@ export function Landing({ locale, loggedIn }: { locale: Locale; loggedIn: boolea
           </nav>
           <div className="lp-nav-right">
             <LangSwitch locale={locale} />
-            {loggedIn ? null : <Link href="/login" className="lp-link-login">{c.nav.login}</Link>}
+            {loggedIn ? null : <Link href={via('/login')} className="lp-link-login">{c.nav.login}</Link>}
             <Link href={start} className="lp-btn lp-btn-gold lp-btn-sm">{loggedIn ? c.nav.open : c.nav.trial}</Link>
           </div>
         </div>
@@ -160,7 +162,7 @@ export function Landing({ locale, loggedIn }: { locale: Locale; loggedIn: boolea
           <div className="lp-footer-row">
             <span>© {year} Crypto2Books. {c.footer.rights}</span>
             <LangSwitch locale={locale} />
-            <Link href="/login">{c.footer.login}</Link>
+            <Link href={via('/login')}>{c.footer.login}</Link>
           </div>
         </div>
       </footer>
