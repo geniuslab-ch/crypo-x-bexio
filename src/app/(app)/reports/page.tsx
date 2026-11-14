@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { importTaxValuesAction } from '@/app/actions';
 import { Flash } from '@/components/Flash';
 import { getI18n } from '@/i18n/server';
+import { fill } from '@/i18n/ui';
 import { requireCtx } from '@/server/auth/next';
 import { taxValues } from '@/server/db/schema';
 import { normalizeNumeric } from '@/server/services/transactions';
@@ -14,13 +15,13 @@ const REPORTS = [
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ year?: string; ok?: string; error?: string }> }) {
   const sp = await searchParams;
   const { ctx } = await requireCtx();
-  const { t } = await getI18n();
+  const { t, locale } = await getI18n();
   const now = new Date().getFullYear();
   const year = sp.year && /^\d{4}$/.test(sp.year) ? sp.year : String(now - 1);
   const values = await ctx.db.select().from(taxValues).where(and(eq(taxValues.orgId, ctx.orgId), eq(taxValues.taxYear, Number(year))));
   return (
     <div className="stack">
-      <Flash ok={sp.ok} error={sp.error} />
+      <Flash ok={sp.ok} error={sp.error} locale={locale} />
       <div className="page-head"><div><h1>{t('rep.title')}</h1><p className="subtitle">{t('set.disclaimer')}</p></div>
         <form method="get" className="row"><label>{t('rep.year')}<select name="year" defaultValue={year}>
           {Array.from({ length: 8 }, (_, i) => String(now - i)).map((y) => <option key={y} value={y}>{y}</option>)}<option value="all">{t('common.all')}</option>
@@ -39,15 +40,15 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       </div>
       <div className="grid grid-2">
         <form action={importTaxValuesAction} className="card stack">
-          <h2>Valeurs fiscales AFC au 31.12.{year}</h2>
-          <p className="small muted">Pour la déclaration d’impôt, la fortune en crypto se déclare à la valeur fiscale du 31 décembre publiée par l’AFC dans la Kursliste (<a href="https://www.ictax.admin.ch/extern/fr.html#/ratelist" target="_blank" rel="noreferrer">ictax.admin.ch</a>). Recherchez chaque crypto, puis importez un fichier CSV avec les colonnes <span className="mono">asset,year,value_chf,source,source_url</span>. Exemple : <span className="mono">BTC,{year},…,Kursliste AFC {year},https://www.ictax.admin.ch</span>. Sans valeur saisie, l’état des titres utilise le cours de marché et l’indique comme non officiel.</p>
+          <h2>{fill(t('rep.taxValuesTitle'), { year })}</h2>
+          <p className="small muted">{t('rep.taxValuesIntro1')} (<a href={locale === 'fr' ? 'https://www.ictax.admin.ch/extern/fr.html#/ratelist' : 'https://www.ictax.admin.ch/'} target="_blank" rel="noreferrer">ictax.admin.ch</a>). {t('rep.taxValuesIntro2')} <span className="mono">asset,year,value_chf,source,source_url</span>. {t('rep.example')} <span className="mono">BTC,{year},…,{t('rep.kursliste')} {year},https://www.ictax.admin.ch</span>. {t('rep.taxValuesIntro3')}</p>
           <input type="hidden" name="year" value={year} />
           <input type="file" name="file" accept=".csv,text/csv" required />
-          <label className="inline"><input type="checkbox" name="replace" /> Remplacer les valeurs existantes (tracé dans le journal d’audit)</label>
-          <button className="btn" type="submit">Importer les valeurs fiscales</button>
+          <label className="inline"><input type="checkbox" name="replace" /> {t('rep.replaceValues')}</label>
+          <button className="btn" type="submit">{t('rep.importValues')}</button>
         </form>
         <div className="card">
-          <h2>Valeurs saisies pour {year}</h2>
+          <h2>{fill(t('rep.valuesFor'), { year })}</h2>
           {values.length === 0 ? <p className="muted">{t('common.none')}</p> : (
             <div className="table-wrap"><table className="table"><thead><tr><th>{t('common.asset')}</th><th className="num">CHF</th><th>{t('common.source')}</th></tr></thead>
               <tbody>{values.map((v) => <tr key={v.id}><td>{v.asset}</td><td className="num mono">{normalizeNumeric(v.valueChf)}</td>

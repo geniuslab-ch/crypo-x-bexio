@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Money } from '@/components/ui';
 import { getI18n } from '@/i18n/server';
+import { fill } from '@/i18n/ui';
 import { requireCtx } from '@/server/auth/next';
 import { dashboardStats } from '@/server/services/dashboard';
 
@@ -9,7 +10,7 @@ export default async function Dashboard() {
   const { t, date } = await getI18n();
   const s = await dashboardStats(ctx);
   const steps = [
-    { label: t('step.import'), done: s.transactions > 0, href: '/sources', note: `${s.transactions} transactions` },
+    { label: t('step.import'), done: s.transactions > 0, href: '/sources', note: fill(t('dash.nTransactions'), { n: s.transactions }) },
     { label: t('step.classify'), done: s.transactions > 0 && s.awaitingReview === 0 && s.rateMissing === 0, href: '/review', note: `${s.awaitingReview} ${t('tx.needsReview').toLowerCase()}` },
     { label: t('step.calculate'), done: s.run?.status === 'complete', href: '/accounting', note: s.run ? (s.run.status === 'complete' ? t('acc.complete') : t('acc.blocked')) : '—' },
     { label: t('step.validate'), done: s.entries.draft === 0 && s.entries.validated + s.entries.synced > 0, href: '/accounting', note: `${s.entries.draft} ${t('status.draft').toLowerCase()}` },

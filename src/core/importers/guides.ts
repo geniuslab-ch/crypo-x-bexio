@@ -1,4 +1,4 @@
-/** What each CSV format expects, shown next to the format picker (French UI). Example rows are fictitious. */
+/** What each CSV format expects, shown next to the format picker (French here; other languages in WHERE). Example rows are fictitious. */
 export interface FormatGuide {
   where: string;
   columns: string[];
@@ -22,6 +22,32 @@ export const FORMAT_GUIDES: Record<string, FormatGuide> = {
     example: ['exemple-1', '2025-01-10 08:00:00 UTC', 'Buy', 'ETH', '1', 'CHF', 'CHF3000.00', 'CHF3000.00', 'CHF3029.85', 'CHF29.85', 'Exemple fictif'],
   },
 };
+
+/** The "where to find it" text in the other interface languages (French stays in FORMAT_GUIDES). */
+const WHERE: Record<string, Record<string, string>> = {
+  de: {
+    generic_v1: 'Crypto2Books-Vorlage: für jede Plattform und jedes Wallet ohne eigenes Format. Eine Zeile pro Vorgang; «in» = erhalten, «out» = abgegeben, Mengen immer positiv.',
+    kraken_ledger_v1: 'Kraken: History → Export → Typ «Ledgers», Format CSV. Verwenden Sie nicht den Export «Trades»: Er enthält weder Ein- und Auszahlungen noch Staking.',
+    coinbase_history_v1: 'Coinbase: Profil → Berichte (Statements) → «Transaction history», Format CSV. Kopfzeilen über der Tabelle werden akzeptiert.',
+  },
+  it: {
+    generic_v1: 'Modello Crypto2Books: per qualsiasi piattaforma o wallet senza formato dedicato. Una riga per operazione; «in» = ricevuto, «out» = dato, quantità sempre positive.',
+    kraken_ledger_v1: 'Kraken: History → Export → tipo «Ledgers», formato CSV. Non usate l’esportazione «Trades»: non contiene né depositi, né prelievi, né staking.',
+    coinbase_history_v1: 'Coinbase: Profilo → Rapporti (Statements) → «Transaction history», formato CSV. Le righe d’intestazione sopra la tabella sono accettate.',
+  },
+  en: {
+    generic_v1: 'Crypto2Books template: for any platform or wallet without a dedicated format. One row per operation; “in” = received, “out” = given, quantities always positive.',
+    kraken_ledger_v1: 'Kraken: History → Export → type “Ledgers”, CSV format. Don’t use the “Trades” export: it has no deposits, withdrawals or staking.',
+    coinbase_history_v1: 'Coinbase: Profile → Statements → “Transaction history”, CSV format. Header lines above the table are accepted.',
+  },
+};
+
+/** Guides with the help text in the interface language. */
+export function localizedGuides(locale: string): Record<string, FormatGuide> {
+  const w = WHERE[locale];
+  if (!w) return FORMAT_GUIDES;
+  return Object.fromEntries(Object.entries(FORMAT_GUIDES).map(([id, g]) => [id, { ...g, where: w[id] ?? g.where }]));
+}
 
 const csvCell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 export function exampleCsv(id: string): string | null {

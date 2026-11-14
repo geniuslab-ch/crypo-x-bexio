@@ -2,18 +2,18 @@ import { LEGAL_FORMS } from '@/core/legalForms';
 import Link from 'next/link';
 import { registerAction } from '@/app/actions';
 import { Flash } from '@/components/Flash';
-import { translator } from '@/i18n/dictionaries';
+import { getI18n } from '@/i18n/server';
 
 export default async function RegisterPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
-  const t = translator('fr');
+  const { t, locale } = await getI18n();
   return (
     <div className="card stack" style={{ padding: 28 }}>
       <div>
         <h1>{t('auth.register')}</h1>
         <p className="subtitle">{t('auth.trial')}</p>
       </div>
-      <Flash error={sp.error} />
+      <Flash error={sp.error} locale={locale} />
       <form action={registerAction} className="stack">
         <label>{t('auth.name')}<input name="name" defaultValue={sp.name} required maxLength={120} autoComplete="name" /></label>
         <label>{t('auth.email')}<input name="email" type="email" defaultValue={sp.email} required autoComplete="email" /></label>
@@ -29,8 +29,8 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
           </label>
           <label>{t('auth.canton')}<input name="canton" defaultValue={sp.canton} maxLength={2} /></label>
         </div>
-        <label>Langue / Language / Sprache
-          <select name="locale" defaultValue={sp.locale ?? 'fr'}><option value="fr">Français</option><option value="en">English</option><option value="de">Deutsch</option><option value="it">Italiano</option></select>
+        <label>{t('auth.language')}
+          <select name="locale" defaultValue={sp.locale ?? locale}><option value="fr">Français</option><option value="en">English</option><option value="de">Deutsch</option><option value="it">Italiano</option></select>
         </label>
         <button className="btn btn-primary" type="submit">{t('auth.register')}</button>
       </form>

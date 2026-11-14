@@ -7,6 +7,7 @@ import { Money, StatusBadge } from '@/components/ui';
 import { classificationAllowed } from '@/core/legalForms';
 import { CLASSIFICATIONS } from '@/core/types';
 import { getI18n } from '@/i18n/server';
+import { fill } from '@/i18n/ui';
 import { requireCtx } from '@/server/auth/next';
 import { auditLog, journalEntries } from '@/server/db/schema';
 import { getOrgProfile } from '@/server/services/organization';
@@ -17,7 +18,7 @@ export default async function TxDetail({ params, searchParams }: { params: Promi
   const sp = await searchParams;
   const { ctx } = await requireCtx();
   const { kind } = await getOrgProfile(ctx);
-  const { t, cls, date } = await getI18n();
+  const { t, cls, date, locale } = await getI18n();
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const [l] = await loadTransactions(ctx, [id]);
   if (!l) notFound();
@@ -33,7 +34,7 @@ export default async function TxDetail({ params, searchParams }: { params: Promi
           <h1>{cls(current)}</h1><p className="subtitle">{date(l.tx.occurredAt)} · {l.sourceLabel} · <span className="mono">{l.tx.externalId ?? '—'}</span></p></div>
         <StatusBadge status={l.tx.reviewStatus} label={l.tx.reviewStatus === 'ok' ? t('tx.ok') : t('tx.needsReview')} />
       </div>
-      <Flash ok={sp.ok} error={sp.error} />
+      <Flash ok={sp.ok} error={sp.error} locale={locale} />
       <div className="grid grid-2">
         <div className="card stack">
           <h2>{t('tx.legs')}</h2>
@@ -43,19 +44,19 @@ export default async function TxDetail({ params, searchParams }: { params: Promi
               <tr key={m.id}>
                 <td>{m.direction === 'in' ? '↓ in' : m.direction === 'out' ? '↑ out' : 'fee'}{m.derived ? ' *' : ''}</td>
                 <td><b>{m.asset}</b></td><td className="num mono">{normalizeNumeric(m.quantity)}</td>
-                <td className="num mono">{m.chfRate ? Number(m.chfRate).toLocaleString('fr-CH', { maximumFractionDigits: 6 }) : '—'}</td>
+                <td className="num mono">{m.chfRate ? Number(m.chfRate).toLocaleString(`${locale}-CH`, { maximumFractionDigits: 6 }) : '—'}</td>
                 <td className="num"><Money value={m.chfValue} /></td>
-                <td className="small">{m.rateRef ?? (l.tx.classification === 'internal_transfer' && m.direction !== 'fee' ? 'non requis (transfert interne)' : <span className="badge badge-bad">{t('tx.rateMissing')}</span>)}</td>
+                <td className="small">{m.rateRef ?? (l.tx.classification === 'internal_transfer' && m.direction !== 'fee' ? t('tx.notRequired') : <span className="badge badge-bad">{t('tx.rateMissing')}</span>)}</td>
               </tr>
             ))}</tbody>
           </table></div>
           {l.tx.txHash && <p className="small">Hash : <span className="mono">{l.tx.txHash}</span></p>}
-          {l.tx.transferGroupId && <p className="small muted">Transfert apparié · groupe <span className="mono">{l.tx.transferGroupId}</span></p>}
+          {l.tx.transferGroupId && <p className="small muted">{t('tx.paired')} <span className="mono">{l.tx.transferGroupId}</span></p>}
         </div>
         <div className="card stack">
           <h2>{t('tx.why')}</h2>
           <ul style={{ margin: 0, paddingLeft: 18 }}>{reasons.map((r) => <li key={r}>{r}</li>)}</ul>
-          <p className="small muted">{t('tx.confidence')} : {Math.round(Number(l.tx.confidence) * 100)}% · origine : {l.tx.manualClassification ? 'manuelle' : l.tx.classificationOrigin}</p>
+          <p className="small muted">{t('tx.confidence')} : {Math.round(Number(l.tx.confidence) * 100)}% · {t('tx.origin')} : {l.tx.manualClassification ? t('tx.manual') : l.tx.classificationOrigin}</p>
           <h3>{t('tx.correct')}</h3>
           {locked ? <div className="alert alert-warn">{t('tx.locked')}</div> : (
             <form action={classifyAction} className="stack">
@@ -74,7 +75,7 @@ export default async function TxDetail({ params, searchParams }: { params: Promi
       </div>
       <div className="card stack">
         <h2>{t('tx.evidence')}</h2>
-        <p className="small muted">Lignes {(l.tx.rowNumbers as number[]).join(', ')} du fichier importé.</p>
+        <p className="small muted">{fill(t('tx.rows'), { rows: (l.tx.rowNumbers as number[]).join(', ') })}</p>
         <pre className="evidence">{JSON.stringify(l.tx.raw, null, 2)}</pre>
       </div>
       {entries.length > 0 && (
@@ -83,7 +84,7 @@ export default async function TxDetail({ params, searchParams }: { params: Promi
         </div>
       )}
       {history.length > 0 && (
-        <div className="card"><h2>Historique</h2>
+        <div className="card"><h2>{t('tx.history')}</h2>
           {history.map((h) => <div key={h.id} className="small">{date(h.createdAt)} · {h.action} · {JSON.stringify(h.before)} → {JSON.stringify(h.after)}</div>)}
         </div>
       )}

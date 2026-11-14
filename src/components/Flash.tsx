@@ -1,3 +1,5 @@
+import { FLASH_LABELS, FLASH_MESSAGES, FLASH_PLATFORM } from '@/i18n/flash';
+
 const MESSAGES: Record<string, string> = {
   invalid_credentials: 'E-mail ou mot de passe incorrect.',
   too_many_attempts: 'Trop de tentatives. Réessayez dans 15 minutes.',
@@ -70,17 +72,22 @@ const LABELS: Record<string, string> = {
   errors: 'erreurs', confirmed: 'confirmées', closing_entries: 'écritures de clôture créées (validées)', opening_added: 'soldes d’ouverture ajoutés',
 };
 
-/** Turns a stored message code (or `code|label:n` list) into French text. */
-export function flashText(text: string): string {
+/** Turns a stored message code (or `code|label:n` list) into text in the interface language (French by default). */
+export function flashText(text: string, locale = 'fr'): string {
+  const messages = FLASH_MESSAGES[locale] ?? {};
+  const labels = FLASH_LABELS[locale] ?? {};
   return text.split('|').map((part) => {
-    if (part.startsWith('platform=')) return `Réponse de la plateforme : « ${part.slice(9)} »`;
+    if (part.startsWith('platform=')) {
+      const p = FLASH_PLATFORM[locale];
+      return p ? p.replace('{x}', part.slice(9)) : `Réponse de la plateforme : « ${part.slice(9)} »`;
+    }
     const [k, v] = part.split(':');
-    if (v !== undefined && k && LABELS[k]) return `${v} ${LABELS[k]}`;
-    return MESSAGES[part] ?? part;
+    if (v !== undefined && k && LABELS[k]) return `${v} ${labels[k] ?? LABELS[k]}`;
+    return messages[part] ?? MESSAGES[part] ?? part;
   }).join(' · ');
 }
 
-export function Flash({ ok, error }: { ok?: string; error?: string }) {
+export function Flash({ ok, error, locale }: { ok?: string; error?: string; locale?: string }) {
   if (!ok && !error) return null;
-  return <div className={`alert ${error ? 'alert-bad' : 'alert-ok'}`} role="status" style={{ marginBottom: 16 }}>{flashText(error ?? ok ?? '')}</div>;
+  return <div className={`alert ${error ? 'alert-bad' : 'alert-ok'}`} role="status" style={{ marginBottom: 16 }}>{flashText(error ?? ok ?? '', locale)}</div>;
 }
