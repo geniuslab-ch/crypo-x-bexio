@@ -39,6 +39,16 @@ export const sessions = pgTable('sessions', {
   createdAt: createdAt(),
 }, (t) => [uniqueIndex('sessions_token_uq').on(t.tokenHash)]);
 
+/** One-time password reset links. Only the SHA-256 of the token is stored; a link works once and expires after an hour. */
+export const passwordResets = pgTable('password_resets', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex('password_resets_token_uq').on(t.tokenHash)]);
+
 export const organizations = pgTable('organizations', {
   id: id(),
   name: text('name').notNull(),

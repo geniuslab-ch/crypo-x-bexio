@@ -4,6 +4,20 @@
  * Placeholders like {n} are filled with `fill()`.
  */
 export const UI_FR = {
+  'pw.forgot': 'Mot de passe oublié ?',
+  'pw.forgotTitle': 'Mot de passe oublié',
+  'pw.forgotIntro': 'Indiquez l’e-mail de votre compte. Nous vous envoyons un lien pour choisir un nouveau mot de passe, valable une heure.',
+  'pw.send': 'Envoyer le lien',
+  'pw.backToLogin': 'Retour à la connexion',
+  'pw.resetTitle': 'Nouveau mot de passe',
+  'pw.resetIntro': 'Choisissez un nouveau mot de passe pour votre compte. Vous serez déconnecté·e de tous vos appareils.',
+  'pw.newPassword': 'Nouveau mot de passe',
+  'pw.save': 'Enregistrer le mot de passe',
+  'pw.linkInvalid': 'Ce lien n’est plus valable : il a déjà servi ou il a expiré (une heure). Demandez-en un nouveau.',
+  'pw.requestNew': 'Demander un nouveau lien',
+  'pw.mailSubject': 'Crypto2Books : choisir un nouveau mot de passe',
+  'pw.mailBody': 'Bonjour {name},\n\nQuelqu’un a demandé à réinitialiser le mot de passe de votre compte Crypto2Books ({email}).\n\nPour choisir un nouveau mot de passe, ouvrez ce lien dans l’heure :\n{link}\n\nSi vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail : votre mot de passe actuel reste valable.\n\nCrypto2Books',
+
   'auth.b1': 'Imports Kraken, Coinbase, Binance, wallets et modèle CSV universel',
   'auth.b2': 'Conversion CHF documentée, FIFO ou coût moyen pondéré',
   'auth.b3': 'Écritures validées envoyées dans bexio, sans doublon',
@@ -136,6 +150,20 @@ export type UiKey = keyof typeof UI_FR;
 type UiDict = Record<UiKey, string>;
 
 export const UI_DE: UiDict = {
+  'pw.forgot': 'Passwort vergessen?',
+  'pw.forgotTitle': 'Passwort vergessen',
+  'pw.forgotIntro': 'Geben Sie die E-Mail Ihres Kontos an. Wir senden Ihnen einen Link, mit dem Sie ein neues Passwort wählen können. Er ist eine Stunde gültig.',
+  'pw.send': 'Link senden',
+  'pw.backToLogin': 'Zurück zur Anmeldung',
+  'pw.resetTitle': 'Neues Passwort',
+  'pw.resetIntro': 'Wählen Sie ein neues Passwort für Ihr Konto. Sie werden auf allen Geräten abgemeldet.',
+  'pw.newPassword': 'Neues Passwort',
+  'pw.save': 'Passwort speichern',
+  'pw.linkInvalid': 'Dieser Link ist nicht mehr gültig: Er wurde bereits verwendet oder ist abgelaufen (eine Stunde). Fordern Sie einen neuen an.',
+  'pw.requestNew': 'Neuen Link anfordern',
+  'pw.mailSubject': 'Crypto2Books: neues Passwort wählen',
+  'pw.mailBody': 'Guten Tag {name}\n\nJemand hat verlangt, das Passwort Ihres Crypto2Books-Kontos ({email}) zurückzusetzen.\n\nÖffnen Sie diesen Link innerhalb einer Stunde, um ein neues Passwort zu wählen:\n{link}\n\nFalls Sie dies nicht verlangt haben, ignorieren Sie diese E-Mail: Ihr bisheriges Passwort bleibt gültig.\n\nCrypto2Books',
+
   'auth.b1': 'Import von Kraken, Coinbase, Binance, Wallets und universeller CSV-Vorlage',
   'auth.b2': 'Belegte CHF-Umrechnung, FIFO oder gewichteter Durchschnitt',
   'auth.b3': 'Freigegebene Buchungen an bexio, ohne Duplikate',
@@ -265,6 +293,20 @@ export const UI_DE: UiDict = {
 };
 
 export const UI_IT: UiDict = {
+  'pw.forgot': 'Password dimenticata?',
+  'pw.forgotTitle': 'Password dimenticata',
+  'pw.forgotIntro': 'Indicate l’e-mail del vostro account. Vi inviamo un link per scegliere una nuova password, valido un’ora.',
+  'pw.send': 'Invia il link',
+  'pw.backToLogin': 'Torna all’accesso',
+  'pw.resetTitle': 'Nuova password',
+  'pw.resetIntro': 'Scegliete una nuova password per il vostro account. Verrete disconnessi da tutti i dispositivi.',
+  'pw.newPassword': 'Nuova password',
+  'pw.save': 'Salva la password',
+  'pw.linkInvalid': 'Questo link non è più valido: è già stato usato o è scaduto (un’ora). Richiedetene uno nuovo.',
+  'pw.requestNew': 'Richiedi un nuovo link',
+  'pw.mailSubject': 'Crypto2Books: scegliere una nuova password',
+  'pw.mailBody': 'Buongiorno {name},\n\nqualcuno ha chiesto di reimpostare la password del vostro account Crypto2Books ({email}).\n\nPer scegliere una nuova password, aprite questo link entro un’ora:\n{link}\n\nSe non avete fatto voi questa richiesta, ignorate questa e-mail: la password attuale resta valida.\n\nCrypto2Books',
+
   'auth.b1': 'Importazione da Kraken, Coinbase, Binance, wallet e modello CSV universale',
   'auth.b2': 'Conversione in CHF documentata, FIFO o costo medio ponderato',
   'auth.b3': 'Registrazioni convalidate inviate a bexio, senza doppioni',
@@ -394,6 +436,20 @@ export const UI_IT: UiDict = {
 };
 
 export const UI_EN: UiDict = {
+  'pw.forgot': 'Forgot your password?',
+  'pw.forgotTitle': 'Forgot your password',
+  'pw.forgotIntro': 'Enter the e-mail of your account. We will send you a link to choose a new password, valid for one hour.',
+  'pw.send': 'Send the link',
+  'pw.backToLogin': 'Back to sign in',
+  'pw.resetTitle': 'New password',
+  'pw.resetIntro': 'Choose a new password for your account. You will be signed out on all your devices.',
+  'pw.newPassword': 'New password',
+  'pw.save': 'Save password',
+  'pw.linkInvalid': 'This link is no longer valid: it has already been used or has expired (one hour). Request a new one.',
+  'pw.requestNew': 'Request a new link',
+  'pw.mailSubject': 'Crypto2Books: choose a new password',
+  'pw.mailBody': 'Hello {name},\n\nSomeone asked to reset the password of your Crypto2Books account ({email}).\n\nTo choose a new password, open this link within the hour:\n{link}\n\nIf you did not make this request, ignore this e-mail: your current password stays valid.\n\nCrypto2Books',
+
   'auth.b1': 'Imports from Kraken, Coinbase, Binance, wallets and a universal CSV template',
   'auth.b2': 'Documented CHF conversion, FIFO or weighted average cost',
   'auth.b3': 'Approved entries sent to bexio, without duplicates',
