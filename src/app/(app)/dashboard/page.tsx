@@ -56,6 +56,16 @@ export default async function Dashboard() {
           <div className="hint">{s.bexio.company ?? ''}</div></Link>
       </div>
 
+      <div className="grid grid-4">
+        <div className="card kpi"><div className="label">{t('dash.income')} {s.year}</div><div className="value"><Money value={s.incomeYtd} /></div></div>
+        <Link href={`/reconciliation?date=${s.reconciliation.date}`} className="card kpi" style={{ textDecoration: 'none' }}>
+          <div className="label">{t('dash.reconciliation')} {s.reconciliation.date.split('-').reverse().join('.')}</div>
+          <div className="value">{s.reconciliation.gaps ? <span className="neg">{s.reconciliation.gaps} {t('rec.gap').toLowerCase()}</span> : s.reconciliation.ok ? '✓' : '—'}</div>
+          <div className="hint">{s.reconciliation.ok} {t('rec.ok').toLowerCase()} · {s.reconciliation.notReported} {t('rec.notReported').toLowerCase()}</div></Link>
+        <Link href="/closing" className="card kpi" style={{ textDecoration: 'none' }}><div className="label">{t('dash.closing')} {s.year - 1}</div>
+          <div className="value" style={{ fontSize: 16 }}>{s.closedYear !== null && s.closedYear >= s.year - 1 ? `✓ ${t('clo.closed').toLowerCase()}` : t('dash.notClosed')}</div></Link>
+      </div>
+
       <div className="card">
         <h2>{t('dash.holdings')}</h2>
         {s.assets.length === 0 ? <p className="muted">{t('common.none')}</p> : (

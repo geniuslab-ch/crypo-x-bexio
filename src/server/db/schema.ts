@@ -342,6 +342,8 @@ export const accountMappings = pgTable('account_mappings', {
   bexioAccountId: integer('bexio_account_id').notNull(),
   bexioAccountNo: text('bexio_account_no').notNull(),
   bexioAccountName: text('bexio_account_name').notNull(),
+  /** Optional bexio VAT code set on every line booked to this account. */
+  bexioTaxId: integer('bexio_tax_id'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('mappings_uq').on(t.orgId, t.key)]);
 
@@ -370,6 +372,19 @@ export const bexioAccounts = pgTable('bexio_accounts', {
   isLocked: boolean('is_locked').notNull(),
   fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('bexio_accounts_uq').on(t.orgId, t.bexioId)]);
+
+/** VAT codes defined in the company's bexio (name and rate chosen by the company or its fiduciary). */
+export const bexioTaxes = pgTable('bexio_taxes', {
+  id: id(),
+  orgId: orgId(),
+  bexioId: integer('bexio_id').notNull(),
+  code: text('code').notNull(),
+  name: text('name').notNull(),
+  type: text('type').notNull(),
+  value: numeric('value', { precision: 7, scale: 4 }).notNull(),
+  isActive: boolean('is_active').notNull(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('bexio_taxes_uq').on(t.orgId, t.bexioId)]);
 
 export const bexioBusinessYears = pgTable('bexio_business_years', {
   id: id(),

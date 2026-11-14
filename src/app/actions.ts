@@ -14,7 +14,7 @@ import { BexioHttpError } from '@/integrations/bexio/client';
 import { AppError } from '@/server/context';
 import { getDb } from '@/server/db';
 import { accountingPolicies, memberships, organizations, users } from '@/server/db/schema';
-import { disconnect, refreshBexioData, setMapping, syncEntries } from '@/server/services/bexio';
+import { disconnect, refreshBexioData, setMapping, setVatCode, syncEntries } from '@/server/services/bexio';
 import { markPolicyReviewed, runCalculation, setEntriesValidated, updatePolicy } from '@/server/services/calculation';
 import { reclassify, setManualClassification } from '@/server/services/classification';
 import { createSource, importFile, listSources } from '@/server/services/imports';
@@ -365,6 +365,12 @@ export async function saveMappingsAction(form: FormData) {
       const key = k.slice(4);
       const val = String(v);
       await setMapping(ctx, key, val === '' ? null : Number(val));
+    }
+    // VAT codes after the accounts, since a code needs a mapped account.
+    for (const [k, v] of form.entries()) {
+      if (!k.startsWith('vat:')) continue;
+      const val = String(v);
+      await setVatCode(ctx, k.slice(4), val === '' ? null : Number(val));
     }
   } catch (e) {
     back('/bexio', 'error', msg(e));

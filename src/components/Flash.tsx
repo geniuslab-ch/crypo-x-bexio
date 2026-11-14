@@ -61,6 +61,8 @@ const MESSAGES: Record<string, string> = {
   year_closed: 'Exercice clôturé.',
   year_reopened: 'Exercice rouvert : les écritures de clôture ont été retirées.',
   opening_deleted: 'Solde d’ouverture supprimé.',
+  map_account_before_vat: 'Choisissez d’abord le compte bexio, puis son code TVA.',
+  bexio_tax_not_found: 'Code TVA introuvable : rechargez les données bexio.',
   platform_requested: 'Demande enregistrée. Nous vous prévenons dès que la plateforme est disponible.',
   invalid_date: 'Date invalide (AAAA-MM-JJ).',
   invalid_asset: 'Actif invalide.',

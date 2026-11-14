@@ -8,7 +8,7 @@ import { AppError, assertCanValidate, assertCanWrite, type Ctx } from '../contex
 import { decryptSecret, encryptSecret, randomToken } from '../crypto';
 import type { DB } from '../db';
 import {
-  accountMappings, bexioAccounts, bexioBusinessYears, bexioConnections, journalEntries, journalLines, oauthStates, sources, syncAttempts,
+  accountMappings, bexioAccounts, bexioBusinessYears, bexioTaxes, bexioConnections, journalEntries, journalLines, oauthStates, sources, syncAttempts,
 } from '../db/schema';
 
 interface StoredTokens { accessToken: string; refreshToken: string | null; expiresAt: number }
@@ -79,6 +79,9 @@ export function clientFor(ctx: Ctx, fetchImpl: typeof fetch = fetch): BexioClien
 export async function refreshBexioData(ctx: Ctx, client = clientFor(ctx)): Promise<{ accounts: number; years: number }> {
   assertCanWrite(ctx);
   const [accounts, years, currencies] = await Promise.all([client.accounts(), client.businessYears(), client.currencies()]);
+  // VAT codes are optional: a company without VAT (or an authorisation without access) simply has none.
+  let taxes: Awaited<ReturnType<typeof client.taxes>> = [];
+  try { taxes = await client.taxes(); } catch { taxes = []; }
   const chf = currencies.find((c) => c.name === 'CHF');
   await ctx.db.transaction(async (db) => {
     for (const a of accounts) {
@@ -88,19 +91,48 @@ export async function refreshBexioData(ctx: Ctx, client = clientFor(ctx)): Promi
       };
       await db.insert(bexioAccounts).values(v).onConflictDoUpdate({ target: [bexioAccounts.orgId, bexioAccounts.bexioId], set: v });
     }
+    for (const x of taxes) {
+      const v = {
+        orgId: ctx.orgId, bexioId: x.id, code: String(x.code ?? ''), name: String(x.display_name || x.name || x.code || x.id), type: String(x.type ?? ''),
+        value: String(x.value ?? 0), isActive: !!x.is_active, fetchedAt: new Date(),
+      };
+      await db.insert(bexioTaxes).values(v).onConflictDoUpdate({ target: [bexioTaxes.orgId, bexioTaxes.bexioId], set: v });
+    }
     await db.delete(bexioBusinessYears).where(eq(bexioBusinessYears.orgId, ctx.orgId));
     if (years.length) {
       await db.insert(bexioBusinessYears).values(years.map((y) => ({ orgId: ctx.orgId, bexioId: y.id, start: y.start, end: y.end, status: y.status })));
     }
     await db.update(bexioConnections).set({ chfCurrencyId: chf?.id ?? null }).where(eq(bexioConnections.orgId, ctx.orgId));
   });
-  await audit(ctx.db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'bexio.data_refreshed', entity: 'bexio_connection', after: { accounts: accounts.length, years: years.length, chfCurrencyId: chf?.id ?? null } });
+  await audit(ctx.db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'bexio.data_refreshed', entity: 'bexio_connection', after: { accounts: accounts.length, years: years.length, taxes: taxes.length, chfCurrencyId: chf?.id ?? null } });
   if (!chf) throw new AppError('external', 'bexio_has_no_chf_currency');
   return { accounts: accounts.length, years: years.length };
 }
 
 export async function listBexioAccounts(ctx: Ctx) {
   return ctx.db.select().from(bexioAccounts).where(eq(bexioAccounts.orgId, ctx.orgId)).orderBy(bexioAccounts.accountNo);
+}
+
+export async function listBexioTaxes(ctx: Ctx) {
+  return ctx.db.select().from(bexioTaxes).where(eq(bexioTaxes.orgId, ctx.orgId)).orderBy(bexioTaxes.type, bexioTaxes.code);
+}
+
+/** Sets (or clears) the VAT code booked on lines that use the account mapped to `key`. */
+export async function setVatCode(ctx: Ctx, key: string, bexioTaxId: number | null): Promise<void> {
+  assertCanWrite(ctx);
+  const [m] = await ctx.db.select().from(accountMappings).where(and(eq(accountMappings.orgId, ctx.orgId), eq(accountMappings.key, key)));
+  if (!m) {
+    if (bexioTaxId === null) return;
+    throw new AppError('invalid', 'map_account_before_vat');
+  }
+  if ((m.bexioTaxId ?? null) === bexioTaxId) return;
+  if (bexioTaxId !== null) {
+    const [tx] = await ctx.db.select().from(bexioTaxes).where(and(eq(bexioTaxes.orgId, ctx.orgId), eq(bexioTaxes.bexioId, bexioTaxId)));
+    if (!tx) throw new AppError('not_found', 'bexio_tax_not_found');
+  }
+  await ctx.db.update(accountMappings).set({ bexioTaxId, updatedAt: new Date() }).where(eq(accountMappings.id, m.id));
+  await audit(ctx.db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'vat_code.updated', entity: 'account_mapping', entityId: key,
+    before: { bexioTaxId: m.bexioTaxId }, after: { bexioTaxId } });
 }
 
 export async function listMappings(ctx: Ctx) {
@@ -171,7 +203,7 @@ export async function syncEntries(ctx: Ctx, entryIds?: string[], client = client
   const accounts = await listBexioAccounts(ctx);
   const activeById = new Map(accounts.map((a) => [a.bexioId, a]));
   const mappings = new Map<string, MappedAccount>(mappingRows.map((m) => [m.key, {
-    bexioAccountId: m.bexioAccountId, accountNo: m.bexioAccountNo, isActive: activeById.get(m.bexioAccountId)?.isActive ?? false,
+    bexioAccountId: m.bexioAccountId, accountNo: m.bexioAccountNo, isActive: activeById.get(m.bexioAccountId)?.isActive ?? false, taxId: m.bexioTaxId,
   }]));
   const years = await ctx.db.select().from(bexioBusinessYears).where(eq(bexioBusinessYears.orgId, ctx.orgId));
 

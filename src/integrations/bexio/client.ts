@@ -22,6 +22,18 @@ export interface BexioCurrency {
   name: string;
 }
 
+export interface BexioTax {
+  id: number;
+  uuid?: string;
+  name: string;
+  code: string;
+  digit?: string | null;
+  type: string; // sales_tax | pre_tax
+  value: number;
+  is_active: boolean;
+  display_name?: string | null;
+}
+
 export interface BexioBusinessYear {
   id: number;
   start: string;
@@ -135,6 +147,11 @@ export class BexioClient {
 
   currencies() {
     return this.request<BexioCurrency[]>('GET', '/3.0/currencies');
+  }
+
+  /** VAT codes of the company, with the names and rates the company gave them. */
+  taxes() {
+    return this.request<BexioTax[]>('GET', '/3.0/taxes?scope=active&limit=2000');
   }
 
   businessYears() {
