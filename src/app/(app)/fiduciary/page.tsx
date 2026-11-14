@@ -3,7 +3,7 @@ import { Flash } from '@/components/Flash';
 import { getI18n } from '@/i18n/server';
 import { requireCtx } from '@/server/auth/next';
 import { orgProfiles } from '@/server/services/organization';
-import { groupRequests, listPlatformRequests } from '@/server/services/platformRequests';
+import { requestTotals } from '@/server/services/platformRequests';
 import { LEGAL_FORMS } from '@/core/legalForms';
 
 export default async function FiduciaryPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
@@ -11,7 +11,7 @@ export default async function FiduciaryPage({ searchParams }: { searchParams: Pr
   const { session, ctx } = await requireCtx();
   const { t } = await getI18n();
   const profiles = await orgProfiles(ctx.db, session.orgs.map((o) => o.id));
-  const requests = groupRequests(await listPlatformRequests(ctx, session.orgs.map((o) => o.id)));
+  const requests = await requestTotals(ctx, session.orgs.map((o) => o.id));
   return (
     <div className="stack">
       <div className="page-head"><div><h1>{t('fid.title')}</h1><p className="subtitle">{t('fid.intro')}</p></div></div>

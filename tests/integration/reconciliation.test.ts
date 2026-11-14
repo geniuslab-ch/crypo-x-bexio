@@ -4,7 +4,8 @@ import type { Ctx } from '@/server/context';
 import { closeDb } from '@/server/db';
 import { createSource, importFile } from '@/server/services/imports';
 import { createPlatformRequest, groupRequests, listPlatformRequests } from '@/server/services/platformRequests';
-import { importReportedBalances, reconcile } from '@/server/services/reconciliation';
+import { importReportedBalances, isCalendarDate, reconcile, saveReportedBalance } from '@/server/services/reconciliation';
+import { requestTotals } from '@/server/services/platformRequests';
 import { resetDatabase } from './helpers';
 
 const HEADER = 'date,type,in_asset,in_quantity,out_asset,out_quantity,fee_asset,fee_quantity,external_id,tx_hash,chf_value,note';
@@ -41,6 +42,12 @@ describe('reconciliation', () => {
       ['CHF', '-20000', null, null, 'not_reported'],
       ['ETH', '0', '0.9', '0.9', 'gap'],
     ]);
+    await expect(saveReportedBalance(ctx, { sourceId: ex, asset: 'BTC', date: '2025-02-31', quantity: '1', evidence: null })).rejects.toThrow('invalid_date');
+    expect(isCalendarDate('2024-02-29')).toBe(true);
+    await createSource(ctx, { provider: 'generic', label: 'Exchange A', kind: 'exchange' });
+    const dup = await importReportedBalances(ctx, 'source,asset,date,balance\nExchange A,BTC,2025-12-31,1\n');
+    expect(dup.saved).toBe(0);
+    expect(dup.errors[0]).toContain('plusieurs sources');
     const summer = await reconcile(ctx, '2025-06-01');
     expect(summer.map((x) => [x.asset, x.computed, x.status])).toEqual([['BTC', '0.499', 'not_reported'], ['CHF', '-20000', 'not_reported']]);
   });
@@ -54,6 +61,10 @@ describe('platform requests', () => {
     const rows = await listPlatformRequests(ctx, [ctx.orgId]);
     expect(rows).toHaveLength(3);
     expect(groupRequests(rows)).toEqual([
+      { platform: 'SwissBorg', count: 2, open: 2 },
+      { platform: 'Bitpanda', count: 1, open: 1 },
+    ]);
+    expect(await requestTotals(ctx, [ctx.orgId])).toEqual([
       { platform: 'SwissBorg', count: 2, open: 2 },
       { platform: 'Bitpanda', count: 1, open: 1 },
     ]);

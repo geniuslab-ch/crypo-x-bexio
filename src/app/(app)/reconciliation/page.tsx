@@ -4,13 +4,13 @@ import { StatusBadge } from '@/components/ui';
 import { getI18n } from '@/i18n/server';
 import { requireCtx } from '@/server/auth/next';
 import { listSources } from '@/server/services/imports';
-import { defaultReconciliationDate, reconcile } from '@/server/services/reconciliation';
+import { defaultReconciliationDate, isCalendarDate, reconcile } from '@/server/services/reconciliation';
 
 export default async function ReconciliationPage({ searchParams }: { searchParams: Promise<{ date?: string; ok?: string; error?: string }> }) {
   const sp = await searchParams;
   const { ctx } = await requireCtx();
   const { t } = await getI18n();
-  const date = sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : defaultReconciliationDate();
+  const date = sp.date && isCalendarDate(sp.date) ? sp.date : defaultReconciliationDate();
   const [rows, srcs] = await Promise.all([reconcile(ctx, date), listSources(ctx)]);
   const gaps = rows.filter((r) => r.status === 'gap').length;
   const missing = rows.filter((r) => r.status === 'not_reported').length;

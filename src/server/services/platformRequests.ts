@@ -1,4 +1,4 @@
-import { desc, inArray } from 'drizzle-orm';
+import { count, desc, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { audit } from '../audit';
 import { AppError, type Ctx } from '../context';
@@ -36,6 +36,18 @@ export async function listPlatformRequests(ctx: Ctx, orgIds: string[]) {
     id: platformRequests.id, orgId: platformRequests.orgId, platform: platformRequests.platform, kind: platformRequests.kind, wanted: platformRequests.wanted,
     note: platformRequests.note, sampleName: platformRequests.sampleName, status: platformRequests.status, createdAt: platformRequests.createdAt,
   }).from(platformRequests).where(inArray(platformRequests.orgId, orgIds)).orderBy(desc(platformRequests.createdAt)).limit(200);
+}
+
+/** All requests of these files grouped by platform name (case-insensitive), most requested first. */
+export async function requestTotals(ctx: Ctx, orgIds: string[]) {
+  if (orgIds.length === 0) return [];
+  const key = sql<string>`lower(trim(${platformRequests.platform}))`;
+  const rows = await ctx.db.select({
+    platform: sql<string>`min(trim(${platformRequests.platform}))`, count: count(),
+    open: sql<number>`count(*) filter (where ${platformRequests.status} in ('open', 'planned'))`,
+  }).from(platformRequests).where(inArray(platformRequests.orgId, orgIds)).groupBy(key);
+  return rows.map((r) => ({ platform: r.platform, count: Number(r.count), open: Number(r.open) }))
+    .sort((a, b) => b.count - a.count || a.platform.localeCompare(b.platform));
 }
 
 /** Requests grouped by platform name (case-insensitive), most requested first. `rows` are newest first. */

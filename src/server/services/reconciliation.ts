@@ -39,7 +39,7 @@ export function defaultReconciliationDate(): string {
  * calculation (after opening balances), next to the balance stated by the platform when one was entered.
  */
 export async function reconcile(ctx: Ctx, date: string): Promise<ReconciliationRow[]> {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new AppError('invalid', 'invalid_date');
+  if (!isCalendarDate(date)) throw new AppError('invalid', 'invalid_date');
   const until = date.endsWith('-12-31') ? yearEndExclusive(Number(date.slice(0, 4))) : endOfDay(date);
   const loaded = applyOpeningCutoff(await loadTransactions(ctx)).kept;
   const computed = computedBalances(loaded.flatMap((l) => l.movements.map((m) => ({
@@ -70,12 +70,13 @@ export async function reconcile(ctx: Ctx, date: string): Promise<ReconciliationR
 export async function importReportedBalances(ctx: Ctx, csv: string): Promise<{ saved: number; errors: string[] }> {
   assertCanWrite(ctx);
   const parsed = Papa.parse<Record<string, string>>(csv.replace(/^﻿/, ''), { header: true, skipEmptyLines: true, transformHeader: (h) => h.trim().toLowerCase() });
-  const byLabel = new Map((await ctx.db.select().from(sources).where(eq(sources.orgId, ctx.orgId))).map((s) => [s.label.trim().toLowerCase(), s.id]));
+  const byLabel = uniqueLabels(await ctx.db.select().from(sources).where(eq(sources.orgId, ctx.orgId)));
   const errors: string[] = [];
   let saved = 0;
   for (const [i, row] of parsed.data.entries()) {
     const line = i + 2;
     const sourceId = byLabel.get((row.source ?? '').trim().toLowerCase());
+    if (sourceId === null) { errors.push(`Ligne ${line} : plusieurs sources portent ce nom ; renommez-les pour les distinguer`); continue; }
     if (!sourceId) { errors.push(`Ligne ${line} : la colonne « source » ne correspond à aucun wallet ou exchange`); continue; }
     try {
       await saveReportedBalance(ctx, { sourceId, asset: row.asset ?? '', date: (row.date ?? '').trim(), quantity: row.balance ?? '', evidence: row.evidence ?? null });
@@ -89,6 +90,24 @@ export async function importReportedBalances(ctx: Ctx, csv: string): Promise<{ s
   return { saved, errors };
 }
 
+/** Source id per label (lower case); null when several sources share a label, so a CSV row cannot pick one silently. */
+export function uniqueLabels(rows: { id: string; label: string }[]): Map<string, string | null> {
+  const m = new Map<string, string | null>();
+  for (const r of rows) {
+    const k = r.label.trim().toLowerCase();
+    m.set(k, m.has(k) ? null : r.id);
+  }
+  return m;
+}
+
+/** A real calendar date in YYYY-MM-DD (rejects 2025-02-31). */
+export function isCalendarDate(v: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [y, m, d] = v.split('-').map(Number) as [number, number, number];
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
 const ERRORS: Record<string, string> = {
   invalid_date: 'date au format AAAA-MM-JJ obligatoire',
   invalid_asset: 'actif invalide',
@@ -100,7 +119,7 @@ export async function saveReportedBalance(ctx: Ctx, input: { sourceId: string; a
   assertCanWrite(ctx);
   const asset = input.asset.trim().toUpperCase();
   const qty = parseAmount(input.quantity);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new AppError('invalid', 'invalid_date');
+  if (!isCalendarDate(input.date)) throw new AppError('invalid', 'invalid_date');
   if (!/^[A-Z0-9.\-_]{1,20}$/.test(asset)) throw new AppError('invalid', 'invalid_asset');
   if (!qty || qty.isNegative()) throw new AppError('invalid', 'invalid_quantity');
   const [src] = await ctx.db.select({ id: sources.id }).from(sources).where(and(eq(sources.orgId, ctx.orgId), eq(sources.id, input.sourceId)));

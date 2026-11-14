@@ -22,7 +22,7 @@ import { legalFormColumns, updateOrgProfile } from '@/server/services/organizati
 import { removeConnection, saveConnection, syncSource } from '@/server/services/sync';
 import { importRates, importTaxValues, revalue } from '@/server/services/valuation';
 import { isRateBasis, isValuationMethod } from '@/core/accounting/closing';
-import { deleteReportedBalance, importReportedBalances, saveReportedBalance } from '@/server/services/reconciliation';
+import { deleteReportedBalance, importReportedBalances, saveReportedBalance, uniqueLabels } from '@/server/services/reconciliation';
 import { createPlatformRequest } from '@/server/services/platformRequests';
 import { addOpeningBalances, closeYear, deleteOpeningBalance, parseOpeningCsv, reopenYear } from '@/server/services/closing';
 
@@ -434,7 +434,7 @@ export async function addOpeningBalancesAction(form: FormData) {
     const file = form.get('file');
     if (file instanceof File && file.size > 0) {
       if (file.size > 2 * 1024 * 1024) throw new AppError('invalid', 'file_too_large');
-      const byLabel = new Map((await listSources(ctx)).map((s) => [s.label.trim().toLowerCase(), s.id]));
+      const byLabel = uniqueLabels(await listSources(ctx));
       const parsed = parseOpeningCsv(await file.text(), byLabel);
       rows.push(...parsed.rows);
       errors.push(...parsed.errors);
