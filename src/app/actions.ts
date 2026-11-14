@@ -27,7 +27,7 @@ import { removeConnection, saveConnection, syncSource } from '@/server/services/
 import { importRates, importTaxValues, revalue } from '@/server/services/valuation';
 import { isRateBasis, isValuationMethod } from '@/core/accounting/closing';
 import { deleteReportedBalance, importReportedBalances, saveReportedBalance, uniqueLabels } from '@/server/services/reconciliation';
-import { createPlatformRequest } from '@/server/services/platformRequests';
+import { createPlatformRequest, platformRequestMail, platformRequestNotice, platformRequestRecipient } from '@/server/services/platformRequests';
 import { addOpeningBalances, closeYear, deleteOpeningBalance, parseOpeningCsv, reopenYear } from '@/server/services/closing';
 
 /** Error codes raised when the server cannot reach or log in to PostgreSQL (configuration problem, not user input). */
@@ -569,10 +569,19 @@ export async function requestPlatformAction(form: FormData) {
   try {
     const file = form.get('file');
     const sample = file instanceof File && file.size > 0 ? { name: file.name, content: await file.text() } : null;
-    await createPlatformRequest(ctx, {
+    const id = await createPlatformRequest(ctx, {
       platform: String(form.get('platform') ?? ''), kind: String(form.get('kind') ?? 'exchange') as 'exchange',
       wanted: String(form.get('wanted') ?? 'either') as 'either', note: String(form.get('note') ?? ''),
     }, sample);
+    // The request is saved first; the team e-mail goes out after the response and a failed send never undoes it.
+    after(async () => {
+      try {
+        const notice = await platformRequestNotice(getDb(), id);
+        if (notice) await sendMail(platformRequestMail(notice, platformRequestRecipient()));
+      } catch (e) {
+        console.error('platform request e-mail failed', e);
+      }
+    });
   } catch (e) {
     back('/sources', 'error', msg(e));
   }
