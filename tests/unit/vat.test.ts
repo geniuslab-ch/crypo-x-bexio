@@ -22,3 +22,17 @@ describe('VAT codes on bexio lines', () => {
     expect(r).toMatchObject({ ok: false });
   });
 });
+
+describe('inactive VAT codes', () => {
+  it('refuses to send a VAT code that is no longer active in bexio', async () => {
+    const { buildManualEntry } = await import('@/integrations/bexio/payload');
+    const mappings = new Map([
+      ['staking_income', { bexioAccountId: 1, accountNo: '3400', isActive: true, taxId: 7, taxInactive: true }],
+      ['crypto_asset:*', { bexioAccountId: 2, accountNo: '1090', isActive: true }],
+    ]);
+    const r = buildManualEntry({ entryDate: '2025-03-01', referenceNr: 'R', description: 'd', lines: [{ debitKey: 'crypto_asset:DOT', creditKey: 'staking_income', amountChf: '10', description: 'x' }] },
+      mappings, 1, [{ start: '2025-01-01', end: '2025-12-31', status: 'open' }]);
+    expect(r).toMatchObject({ ok: false });
+    expect(!r.ok && r.reason).toContain('no longer active');
+  });
+});

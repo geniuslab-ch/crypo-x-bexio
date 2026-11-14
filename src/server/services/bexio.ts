@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, notInArray } from 'drizzle-orm';
 import { ACCOUNT_KEYS } from '@/core/accounting/accountKeys';
 import { BexioClient, BexioHttpError, type ManualEntryResponse, type TokenProvider } from '@/integrations/bexio/client';
 import { authorizationUrl, bexioConfig, exchangeCode, refreshTokens, type BexioTokens } from '@/integrations/bexio/oauth';
@@ -81,7 +81,8 @@ export async function refreshBexioData(ctx: Ctx, client = clientFor(ctx)): Promi
   const [accounts, years, currencies] = await Promise.all([client.accounts(), client.businessYears(), client.currencies()]);
   // VAT codes are optional: a company without VAT (or an authorisation without access) simply has none.
   let taxes: Awaited<ReturnType<typeof client.taxes>> = [];
-  try { taxes = await client.taxes(); } catch { taxes = []; }
+  let taxesFetched = false;
+  try { taxes = await client.taxes(); taxesFetched = true; } catch { taxes = []; }
   const chf = currencies.find((c) => c.name === 'CHF');
   await ctx.db.transaction(async (db) => {
     for (const a of accounts) {
@@ -97,6 +98,13 @@ export async function refreshBexioData(ctx: Ctx, client = clientFor(ctx)): Promi
         value: String(x.value ?? 0), isActive: !!x.is_active, fetchedAt: new Date(),
       };
       await db.insert(bexioTaxes).values(v).onConflictDoUpdate({ target: [bexioTaxes.orgId, bexioTaxes.bexioId], set: v });
+    }
+    // Only active codes are listed: a cached code missing from a successful fetch was deleted or deactivated in bexio.
+    // A failed fetch leaves the cache as it was.
+    if (taxesFetched) {
+      const seen = taxes.map((x) => x.id);
+      await db.update(bexioTaxes).set({ isActive: false, fetchedAt: new Date() })
+        .where(and(eq(bexioTaxes.orgId, ctx.orgId), ...(seen.length ? [notInArray(bexioTaxes.bexioId, seen)] : [])));
     }
     await db.delete(bexioBusinessYears).where(eq(bexioBusinessYears.orgId, ctx.orgId));
     if (years.length) {
@@ -202,8 +210,10 @@ export async function syncEntries(ctx: Ctx, entryIds?: string[], client = client
   const mappingRows = await listMappings(ctx);
   const accounts = await listBexioAccounts(ctx);
   const activeById = new Map(accounts.map((a) => [a.bexioId, a]));
+  const activeTaxes = new Set((await listBexioTaxes(ctx)).filter((x) => x.isActive).map((x) => x.bexioId));
   const mappings = new Map<string, MappedAccount>(mappingRows.map((m) => [m.key, {
     bexioAccountId: m.bexioAccountId, accountNo: m.bexioAccountNo, isActive: activeById.get(m.bexioAccountId)?.isActive ?? false, taxId: m.bexioTaxId,
+    taxInactive: m.bexioTaxId != null && !activeTaxes.has(m.bexioTaxId),
   }]));
   const years = await ctx.db.select().from(bexioBusinessYears).where(eq(bexioBusinessYears.orgId, ctx.orgId));
 
