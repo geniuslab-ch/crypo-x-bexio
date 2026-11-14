@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, lt, notInArray } from 'drizzle-orm';
-import { ACCOUNT_KEYS } from '@/core/accounting/accountKeys';
+import { ACCOUNT_KEYS, cryptoAssetKey, fiatClearingKey } from '@/core/accounting/accountKeys';
+import { isFiat } from '@/core/assets';
 import { BexioClient, BexioHttpError, type ManualEntryResponse, type TokenProvider } from '@/integrations/bexio/client';
 import { authorizationUrl, bexioConfig, exchangeCode, refreshTokens, type BexioTokens } from '@/integrations/bexio/oauth';
 import { buildManualEntry, type MappedAccount } from '@/integrations/bexio/payload';
@@ -8,7 +9,7 @@ import { AppError, assertCanValidate, assertCanWrite, type Ctx } from '../contex
 import { decryptSecret, encryptSecret, randomToken } from '../crypto';
 import type { DB } from '../db';
 import {
-  accountMappings, bexioAccounts, bexioBusinessYears, bexioTaxes, bexioConnections, journalEntries, journalLines, oauthStates, sources, syncAttempts,
+  accountMappings, bexioAccounts, bexioBusinessYears, bexioTaxes, bexioConnections, journalEntries, journalLines, movements, oauthStates, sources, syncAttempts,
 } from '../db/schema';
 
 interface StoredTokens { accessToken: string; refreshToken: string | null; expiresAt: number }
@@ -119,6 +120,16 @@ export async function refreshBexioData(ctx: Ctx, client = clientFor(ctx)): Promi
 
 export async function listBexioAccounts(ctx: Ctx) {
   return ctx.db.select().from(bexioAccounts).where(eq(bexioAccounts.orgId, ctx.orgId)).orderBy(bexioAccounts.accountNo);
+}
+
+/**
+ * Asset-specific account keys for every asset in the file's imported transactions (crypto_asset:BTC, fiat_clearing:EUR),
+ * so each crypto can get its own bexio account before the first calculation. Unmapped keys fall back to the general one.
+ */
+export async function assetAccountKeys(ctx: Ctx): Promise<string[]> {
+  const rows = await ctx.db.selectDistinct({ asset: movements.asset }).from(movements).where(eq(movements.orgId, ctx.orgId));
+  return rows.map((r) => r.asset).filter((a) => KEY_PATTERN.test(`crypto_asset:${a}`) && a !== '*')
+    .map((a) => (isFiat(a) ? fiatClearingKey(a) : cryptoAssetKey(a))).sort();
 }
 
 export async function listBexioTaxes(ctx: Ctx) {
