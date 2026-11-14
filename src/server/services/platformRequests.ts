@@ -38,12 +38,12 @@ export async function listPlatformRequests(ctx: Ctx, orgIds: string[]) {
   }).from(platformRequests).where(inArray(platformRequests.orgId, orgIds)).orderBy(desc(platformRequests.createdAt)).limit(200);
 }
 
-/** All requests of these files grouped by platform name (case-insensitive), most requested first. */
+/** All requests of these files grouped by platform name (case-insensitive, spelled as in the first request), most requested first. */
 export async function requestTotals(ctx: Ctx, orgIds: string[]) {
   if (orgIds.length === 0) return [];
   const key = sql<string>`lower(trim(${platformRequests.platform}))`;
   const rows = await ctx.db.select({
-    platform: sql<string>`min(trim(${platformRequests.platform}))`, count: count(),
+    platform: sql<string>`(array_agg(trim(${platformRequests.platform}) order by ${platformRequests.createdAt}))[1]`, count: count(),
     open: sql<number>`count(*) filter (where ${platformRequests.status} in ('open', 'planned'))`,
   }).from(platformRequests).where(inArray(platformRequests.orgId, orgIds)).groupBy(key);
   return rows.map((r) => ({ platform: r.platform, count: Number(r.count), open: Number(r.open) }))
