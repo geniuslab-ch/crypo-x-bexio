@@ -21,6 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/review', label: t('nav.review'), count: Number(review?.n ?? 0) },
     { href: '/sources', label: t('nav.sources') },
     { href: '/accounting', label: t('nav.accounting'), count: Number(toValidate?.n ?? 0) },
+    { href: '/reconciliation', label: t('nav.reconciliation') },
     { href: '/closing', label: t('nav.closing') },
     { href: '/bexio', label: t('nav.bexio') },
     { href: '/reports', label: t('nav.reports') },

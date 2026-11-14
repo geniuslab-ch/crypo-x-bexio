@@ -10,6 +10,7 @@ import { rateTableLookup, zurichDate } from '@/core/valuation/rateTable';
 import type { Ctx } from '../context';
 import { accountMappings, calculationRuns, disposals, fiscalClosings, priceRates, taxValues } from '../db/schema';
 import { listEntries } from './calculation';
+import { reconcile } from './reconciliation';
 import { getOrgProfile } from './organization';
 import { effectiveClassification, loadTransactions, normalizeNumeric, toEngineInput, toValuedMovement, walletAccountSources } from './transactions';
 
@@ -20,7 +21,7 @@ export interface Report {
   rows: (string | number | null)[][];
 }
 
-export const REPORT_TYPES = ['transactions', 'realized', 'holdings', 'wealth', 'closing', 'journal', 'income', 'donations', 'fees'] as const;
+export const REPORT_TYPES = ['transactions', 'realized', 'holdings', 'wealth', 'closing', 'reconciliation', 'journal', 'income', 'donations', 'fees'] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 
 const DISCLAIMER = 'Document de support comptable généré par Crypto2Books. Ne constitue pas un conseil fiscal; à valider par votre fiduciaire.';
@@ -160,6 +161,20 @@ export async function buildReport(ctx: Ctx, type: ReportType, opts: { year: numb
         ['Note', 'Valeur comptable vs valeur de marché. Les valeurs fiscales (Kursliste AFC) peuvent différer.']]),
       columns: ['Actif', 'Quantité', 'Coût CHF', 'Cours CHF', 'Valeur CHF', 'Latent CHF', 'Source du cours'],
       rows,
+    };
+  }
+
+  if (type === 'reconciliation') {
+    const date = opts.valuationDate ?? `${opts.year ?? new Date().getFullYear() - 1}-12-31`;
+    const rows = await reconcile(ctx, date);
+    const label = { ok: 'concorde', gap: 'ÉCART', not_reported: 'solde de la plateforme non saisi' } as const;
+    return {
+      title: `Rapprochement des soldes au ${date}`,
+      meta: baseMeta(ctx, [['Date', date], ['Écarts', String(rows.filter((r) => r.status === 'gap').length)],
+        ['Soldes non saisis', String(rows.filter((r) => r.status === 'not_reported').length)],
+        ['Méthode', 'Solde calculé = entrées − sorties − frais importés jusqu’à la fin de la journée (heure suisse), après les soldes d’ouverture ; tolérance 0.00000001']]),
+      columns: ['Source', 'Actif', 'Solde calculé', 'Solde de la plateforme', 'Écart', 'Statut', 'Justificatif'],
+      rows: rows.map((r) => [r.sourceLabel, r.asset, r.computed, r.reported, r.difference, label[r.status], r.evidence]),
     };
   }
 
