@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, ne } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, ne } from 'drizzle-orm';
 import { runAccounting, type AccountingPolicy, type AccountingTx, type EngineIssue } from '@/core/accounting/engine';
 import { postingsToLines, type JournalLine } from '@/core/accounting/journal';
 import { D, type Dec } from '@/core/decimal';
@@ -8,7 +8,7 @@ import { zurichDate } from '@/core/valuation/rateTable';
 import { audit } from '../audit';
 import { AppError, assertCanValidate, assertCanWrite, type Ctx } from '../context';
 import {
-  accountingPolicies, calculationRuns, disposals, journalEntries, journalLines, lots, transactions,
+  accountingPolicies, auditLog, calculationRuns, disposals, journalEntries, journalLines, lots, transactions,
 } from '../db/schema';
 import {
   applyOpeningCutoff, effectiveClassification, lastClosedYear, loadTransactions, normalizeNumeric, toEngineInput, walletAccountSources, type LoadedTx,
@@ -40,16 +40,43 @@ export async function getPolicy(ctx: Ctx) {
   return p;
 }
 
+/**
+ * What a policy change would touch, shown before the user unlocks the settings: validated or synced entries and a
+ * closed year freeze the method and the fee treatment; drafts are recalculated at the next run.
+ */
+export async function policyLockState(ctx: Ctx) {
+  const rows = await ctx.db.select({ status: journalEntries.status, n: count() }).from(journalEntries)
+    .where(and(eq(journalEntries.orgId, ctx.orgId), inArray(journalEntries.status, ['draft', 'validated', 'synced', 'sync_failed'])))
+    .groupBy(journalEntries.status);
+  const drafts = rows.find((r) => r.status === 'draft')?.n ?? 0;
+  const validated = rows.filter((r) => r.status !== 'draft').reduce((a, r) => a + r.n, 0);
+  const closedYear = await lastClosedYear(ctx);
+  const [chosen] = await ctx.db.select({ id: auditLog.id }).from(auditLog)
+    .where(and(eq(auditLog.orgId, ctx.orgId), eq(auditLog.action, 'policy.updated'))).limit(1);
+  return { drafts, validated, closedYear, methodLocked: validated > 0 || closedYear !== null, everSaved: Boolean(chosen) };
+}
+
 export async function updatePolicy(ctx: Ctx, input: { costBasisMethod: 'fifo' | 'wac'; tradingFeeTreatment: 'capitalize' | 'expense'; transferWindowHours: number }) {
   assertCanWrite(ctx);
   const before = await getPolicy(ctx);
-  // Changing the method once entries are validated would silently change accepted results: forbid it.
-  const [validated] = await ctx.db.select({ id: journalEntries.id }).from(journalEntries)
-    .where(and(eq(journalEntries.orgId, ctx.orgId), inArray(journalEntries.status, ['validated', 'synced', 'sync_failed']))).limit(1);
-  if (validated && (before.costBasisMethod !== input.costBasisMethod || before.tradingFeeTreatment !== input.tradingFeeTreatment)) {
-    throw new AppError('conflict', 'policy_locked_by_validated_entries');
-  }
   if (!Number.isInteger(input.transferWindowHours) || input.transferWindowHours < 1 || input.transferWindowHours > 720) throw new AppError('invalid', 'invalid_window');
+  const methodChanged = before.costBasisMethod !== input.costBasisMethod || before.tradingFeeTreatment !== input.tradingFeeTreatment;
+  if (methodChanged) {
+    // Changing the method once entries are validated would silently change accepted results: forbid it.
+    const [validated] = await ctx.db.select({ id: journalEntries.id }).from(journalEntries)
+      .where(and(eq(journalEntries.orgId, ctx.orgId), inArray(journalEntries.status, ['validated', 'synced', 'sync_failed']))).limit(1);
+    if (validated) throw new AppError('conflict', 'policy_locked_by_validated_entries');
+    // A closed year was valued with the current method; the following years must keep it (CO art. 958c al. 1 ch. 6).
+    if ((await lastClosedYear(ctx)) !== null) throw new AppError('conflict', 'policy_locked_by_closed_year');
+  }
+  const unchanged = !methodChanged && before.transferWindowHours === input.transferWindowHours;
+  // Saving the same values again must not cancel the fiduciary review; the first save still records the choice.
+  if (unchanged) {
+    if (!(await policyLockState(ctx)).everSaved) {
+      await audit(ctx.db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'policy.updated', entity: 'accounting_policy', entityId: before.id, before, after: input });
+    }
+    return;
+  }
   await ctx.db.update(accountingPolicies).set({ ...input, reviewedByFiduciaryAt: null, reviewedByUserId: null, updatedAt: new Date() })
     .where(eq(accountingPolicies.orgId, ctx.orgId));
   await audit(ctx.db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'policy.updated', entity: 'accounting_policy', entityId: before.id, before, after: input });

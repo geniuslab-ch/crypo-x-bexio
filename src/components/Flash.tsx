@@ -21,6 +21,7 @@ const MESSAGES: Record<string, string> = {
   transaction_locked_by_validated_entry: 'Transaction verrouillée : elle appartient à une écriture validée.',
   wallet_accounts_locked_by_validated_entries: 'Des écritures sont déjà validées : un wallet ne peut plus recevoir ou perdre son propre compte. Seul le numéro de compte peut encore changer.',
   policy_locked_by_validated_entries: 'La méthode ne peut plus être modifiée : des écritures sont déjà validées.',
+  policy_locked_by_closed_year: 'La méthode ne peut plus être modifiée : un exercice est clôturé avec la méthode actuelle.',
   bexio_not_configured: 'Connexion bexio non configurée sur ce serveur (BEXIO_CLIENT_ID, BEXIO_CLIENT_SECRET, APP_URL).',
   bexio_not_connected: 'Connectez d’abord votre compte bexio.',
   bexio_data_not_loaded: 'Chargez d’abord le plan comptable bexio.',
