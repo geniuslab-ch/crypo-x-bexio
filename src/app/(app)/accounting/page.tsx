@@ -65,9 +65,9 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
             <thead><tr><th /><th>{t('common.date')}</th><th>Référence</th><th>Libellé</th><th>{t('acc.debit')}</th><th>{t('acc.credit')}</th><th className="num">{t('acc.amount')}</th><th>{t('common.status')}</th></tr></thead>
             <tbody>{visible.map((e) => e.lines.map((l, i) => (
               <tr key={l.id}>
-                {i === 0 && <td rowSpan={e.lines.length}>{['draft', 'validated'].includes(e.status) && <input type="checkbox" name="entryId" value={e.id} defaultChecked={e.status === 'draft'} />}</td>}
+                {i === 0 && <td rowSpan={e.lines.length}>{['draft', 'validated'].includes(e.status) && e.kind === 'transaction' && <input type="checkbox" name="entryId" value={e.id} defaultChecked={e.status === 'draft'} />}</td>}
                 {i === 0 && <td rowSpan={e.lines.length} style={{ whiteSpace: 'nowrap' }}>{e.entryDate}</td>}
-                {i === 0 && <td rowSpan={e.lines.length} className="mono small"><Link href={`/transactions/${e.transactionId}`}>{e.referenceNr}</Link></td>}
+                {i === 0 && <td rowSpan={e.lines.length} className="mono small">{e.transactionId ? <Link href={`/transactions/${e.transactionId}`}>{e.referenceNr}</Link> : <Link href="/closing">{e.referenceNr}</Link>}</td>}
                 {i === 0 && <td rowSpan={e.lines.length} className="small">{e.description}</td>}
                 <td className="small">{keyLabel(l.debitKey)}</td><td className="small">{keyLabel(l.creditKey)}</td>
                 <td className="num"><Money value={l.amountChf} /></td>

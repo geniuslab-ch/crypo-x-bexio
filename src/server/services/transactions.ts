@@ -1,10 +1,11 @@
-import { and, asc, eq, inArray, like } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, like, lt, max } from 'drizzle-orm';
 import { walletOfKey } from '@/core/accounting/accountKeys';
+import { yearEndExclusive } from '@/core/accounting/closing';
 import type { AccountingTx } from '@/core/accounting/engine';
 import type { Classification, Movement } from '@/core/types';
 import type { ValuedMovement } from '@/core/valuation/value';
 import type { Ctx } from '../context';
-import { accountMappings, journalEntries, movements, sources, transactions } from '../db/schema';
+import { accountMappings, fiscalClosings, journalEntries, movements, sources, transactions } from '../db/schema';
 
 export type TxRow = typeof transactions.$inferSelect;
 export type MovementRow = typeof movements.$inferSelect;
@@ -61,13 +62,53 @@ export function effectiveClassification(tx: TxRow): Classification {
   return (tx.manualClassification ?? tx.classification) as Classification;
 }
 
-/** Transactions whose accounting entry is validated or synced are locked: their inputs must not change silently. */
+/** Latest closed year of the organisation, or null. Every year up to and including it is locked. */
+export async function lastClosedYear(ctx: Ctx): Promise<number | null> {
+  const [r] = await ctx.db.select({ y: max(fiscalClosings.year) }).from(fiscalClosings)
+    .where(and(eq(fiscalClosings.orgId, ctx.orgId), eq(fiscalClosings.status, 'closed')));
+  return r?.y ?? null;
+}
+
+/** First instant that is not locked by a closing (1 January after the last closed year), or null. */
+export async function lockedBefore(ctx: Ctx): Promise<Date | null> {
+  const y = await lastClosedYear(ctx);
+  return y === null ? null : yearEndExclusive(y);
+}
+
+/**
+ * Locked transactions: those whose accounting entry is validated or synced (their inputs must not change silently),
+ * and every transaction of a closed year.
+ */
 export async function lockedTransactionIds(ctx: Ctx): Promise<Set<string>> {
   const rows = await ctx.db
     .select({ id: journalEntries.transactionId })
     .from(journalEntries)
-    .where(and(eq(journalEntries.orgId, ctx.orgId), inArray(journalEntries.status, ['validated', 'synced', 'sync_failed'])));
-  return new Set(rows.map((r) => r.id));
+    .where(and(eq(journalEntries.orgId, ctx.orgId), isNotNull(journalEntries.transactionId), inArray(journalEntries.status, ['validated', 'synced', 'sync_failed'])));
+  const ids = new Set(rows.map((r) => r.id!));
+  const before = await lockedBefore(ctx);
+  if (before) {
+    const closed = await ctx.db.select({ id: transactions.id }).from(transactions)
+      .where(and(eq(transactions.orgId, ctx.orgId), lt(transactions.occurredAt, before)));
+    for (const r of closed) ids.add(r.id);
+  }
+  return ids;
+}
+
+/**
+ * Opening balances replace the history before them: when a file has opening balances, transactions dated before
+ * the opening instant are left out of every calculation (they belong to years kept outside Crypto2Books).
+ */
+export function applyOpeningCutoff<T extends LoadedTx>(list: T[]): { kept: T[]; excluded: T[]; openingAt: Date | null } {
+  const openings = list.filter((l) => effectiveClassification(l.tx) === 'opening_balance');
+  if (openings.length === 0) return { kept: list, excluded: [], openingAt: null };
+  const openingAt = new Date(Math.max(...openings.map((o) => o.tx.occurredAt.getTime())));
+  const kept: T[] = [];
+  const excluded: T[] = [];
+  for (const l of list) {
+    if (effectiveClassification(l.tx) !== 'opening_balance' && l.tx.occurredAt <= openingAt) excluded.push(l);
+    else kept.push(l);
+  }
+  return { kept, excluded, openingAt };
 }
 
 /** Sources that have their own crypto account in bexio (optional per-wallet accounts). */
@@ -82,7 +123,8 @@ export async function walletAccountSources(ctx: Ctx): Promise<Set<string>> {
  * With them, each transaction carries its pool (its source when that source has its own account) and the sending
  * side of a matched transfer carries where the units go.
  */
-export function toEngineInput(list: LoadedTx[], walletSources: Set<string>): AccountingTx[] {
+export function toEngineInput(all: LoadedTx[], walletSources: Set<string>): AccountingTx[] {
+  const list = applyOpeningCutoff(all).kept;
   const base = list.map((l): AccountingTx => ({ id: l.tx.id, occurredAt: l.tx.occurredAt, classification: effectiveClassification(l.tx) as Classification, movements: l.movements.map(toValuedMovement) }));
   if (walletSources.size === 0) return base;
   const poolOf = (l: LoadedTx) => (walletSources.has(l.tx.sourceId) ? l.tx.sourceId : null);

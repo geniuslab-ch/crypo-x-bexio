@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { sha256, transactionFingerprint } from '@/core/fingerprint';
 import { detectImporter, getImporter, INTEGRATIONS } from '@/core/importers';
@@ -8,6 +8,7 @@ import { audit } from '../audit';
 import { AppError, assertCanWrite, type Ctx } from '../context';
 import { importBatches, movements, sources, transactions } from '../db/schema';
 import { reclassify } from './classification';
+import { lockedBefore } from './transactions';
 import { revalue } from './valuation';
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -93,7 +94,22 @@ export async function persistBatch(
   sourceId: string,
   input: { parserId: string; parserVersion: number; fileName: string; content: string; fileSha: string; parsed: ParseResult },
 ): Promise<ImportResult> {
-  const { parsed } = input;
+  // A closed year receives no new transactions: those already known count as duplicates, new ones are reported.
+  const before = await lockedBefore(ctx);
+  let parsed = input.parsed;
+  let closedDuplicates = 0;
+  if (before && parsed.transactions.some((t) => t.occurredAt < before)) {
+    const inClosed = parsed.transactions.filter((t) => t.occurredAt < before);
+    const fps = inClosed.map((t) => transactionFingerprint(sourceId, t));
+    const known = new Set((await ctx.db.select({ fp: transactions.fingerprint }).from(transactions)
+      .where(and(eq(transactions.orgId, ctx.orgId), inArray(transactions.fingerprint, fps)))).map((r) => r.fp));
+    const issues = [...parsed.issues];
+    inClosed.forEach((t, i) => {
+      if (known.has(fps[i]!)) closedDuplicates++;
+      else issues.push({ rowNumber: t.rowNumbers[0] ?? 0, message: `Transaction du ${t.occurredAt.toISOString().slice(0, 10)} dans un exercice clôturé : non importée. Rouvrez l’exercice pour l’ajouter.` });
+    });
+    parsed = { transactions: parsed.transactions.filter((t) => t.occurredAt >= before), issues };
+  }
   return ctx.db.transaction(async (db) => {
     const [batch] = await db.insert(importBatches).values({
       orgId: ctx.orgId, sourceId, parserId: input.parserId, parserVersion: input.parserVersion, fileName: input.fileName.slice(0, 255),
@@ -101,7 +117,7 @@ export async function persistBatch(
       importedCount: 0, duplicateCount: 0, issues: parsed.issues, createdBy: ctx.userId,
     }).returning({ id: importBatches.id });
     let imported = 0;
-    let duplicates = 0;
+    let duplicates = closedDuplicates;
     for (const t of parsed.transactions) {
       const [row] = await db.insert(transactions).values({
         orgId: ctx.orgId, sourceId, batchId: batch!.id, externalId: t.externalId, txHash: t.txHash ?? null,

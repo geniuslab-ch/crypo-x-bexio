@@ -17,10 +17,12 @@ import { accountingPolicies, memberships, organizations, users } from '@/server/
 import { disconnect, refreshBexioData, setMapping, syncEntries } from '@/server/services/bexio';
 import { markPolicyReviewed, runCalculation, setEntriesValidated, updatePolicy } from '@/server/services/calculation';
 import { reclassify, setManualClassification } from '@/server/services/classification';
-import { createSource, importFile } from '@/server/services/imports';
+import { createSource, importFile, listSources } from '@/server/services/imports';
 import { legalFormColumns, updateOrgProfile } from '@/server/services/organization';
 import { removeConnection, saveConnection, syncSource } from '@/server/services/sync';
 import { importRates, importTaxValues, revalue } from '@/server/services/valuation';
+import { isRateBasis, isValuationMethod } from '@/core/accounting/closing';
+import { addOpeningBalances, closeYear, deleteOpeningBalance, parseOpeningCsv, reopenYear } from '@/server/services/closing';
 
 /** Error codes raised when the server cannot reach or log in to PostgreSQL (configuration problem, not user input). */
 const DB_UNAVAILABLE = new Set([
@@ -385,4 +387,76 @@ export async function disconnectBexioAction() {
   const { ctx } = await requireCtx();
   await disconnect(ctx);
   back('/bexio', 'ok', 'disconnected');
+}
+
+// ---------- Year-end closing ----------
+
+export async function closeYearAction(form: FormData) {
+  const { ctx } = await requireCtx();
+  const year = Number(form.get('year'));
+  const method = form.get('method');
+  const basis = form.get('basis');
+  const to = `/closing?year=${year}&method=${String(method)}&basis=${String(basis)}`;
+  if (!isValuationMethod(method) || !isRateBasis(basis)) back(to, 'error', 'invalid_input');
+  let text = '';
+  try {
+    const r = await closeYear(ctx, year, method, basis);
+    text = `year_closed|closing_entries:${r.entries}`;
+  } catch (e) {
+    back(to, 'error', msg(e));
+  }
+  revalidatePath('/', 'layout');
+  back(to, 'ok', text);
+}
+
+export async function reopenYearAction(form: FormData) {
+  const { ctx } = await requireCtx();
+  const year = Number(form.get('year'));
+  try {
+    await reopenYear(ctx, year);
+  } catch (e) {
+    back('/closing', 'error', msg(e));
+  }
+  revalidatePath('/', 'layout');
+  back(`/closing?year=${year}`, 'ok', 'year_reopened');
+}
+
+export async function addOpeningBalancesAction(form: FormData) {
+  const { ctx } = await requireCtx();
+  const year = Number(form.get('openingYear'));
+  const to = '/closing';
+  let text = '';
+  try {
+    const rows = [];
+    const errors: string[] = [];
+    const file = form.get('file');
+    if (file instanceof File && file.size > 0) {
+      if (file.size > 2 * 1024 * 1024) throw new AppError('invalid', 'file_too_large');
+      const byLabel = new Map((await listSources(ctx)).map((s) => [s.label.trim().toLowerCase(), s.id]));
+      const parsed = parseOpeningCsv(await file.text(), byLabel);
+      rows.push(...parsed.rows);
+      errors.push(...parsed.errors);
+    }
+    const asset = String(form.get('asset') ?? '').trim();
+    if (asset) rows.push({ sourceId: String(form.get('sourceId') ?? ''), asset, quantity: String(form.get('quantity') ?? ''), costChf: String(form.get('costChf') ?? '') });
+    if (rows.length === 0 && errors.length === 0) throw new AppError('invalid', 'invalid_input');
+    const r = await addOpeningBalances(ctx, year, rows);
+    errors.push(...r.errors);
+    text = [`opening_added:${r.added}`, `duplicates:${r.duplicates}`, `errors:${errors.length}`, ...errors.slice(0, 3)].join('|');
+  } catch (e) {
+    back(to, 'error', msg(e));
+  }
+  revalidatePath('/', 'layout');
+  back(to, 'ok', text);
+}
+
+export async function deleteOpeningBalanceAction(form: FormData) {
+  const { ctx } = await requireCtx();
+  try {
+    await deleteOpeningBalance(ctx, String(form.get('txId') ?? ''));
+  } catch (e) {
+    back('/closing', 'error', msg(e));
+  }
+  revalidatePath('/', 'layout');
+  back('/closing', 'ok', 'opening_deleted');
 }

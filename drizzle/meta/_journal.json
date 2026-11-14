@@ -43,6 +43,13 @@
       "when": 1794560381216,
       "tag": "0005_legal_form",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794640335347,
+      "tag": "0006_year_end_closing",
+      "breakpoints": true
     }
   ]
 }
