@@ -6,7 +6,10 @@ import type { FormatGuide } from '@/core/importers/guides';
 interface Option { id: string; label: string }
 
 /** Format select for CSV import: the help text, expected columns and example file follow the chosen format. */
-export function FormatPicker({ label, autoLabel, options, guides }: { label: string; autoLabel: string; options: Option[]; guides: Record<string, FormatGuide> }) {
+export function FormatPicker({ label, autoLabel, options, guides, texts }: {
+  label: string; autoLabel: string; options: Option[]; guides: Record<string, FormatGuide>;
+  texts: { columns: string; example: string; auto: string };
+}) {
   const [id, setId] = useState('');
   const g = id ? guides[id] : undefined;
   return (
@@ -18,11 +21,11 @@ export function FormatPicker({ label, autoLabel, options, guides }: { label: str
       {g ? (
         <div className="alert alert-info small stack" style={{ gap: 6 }}>
           <div>{g.where}</div>
-          <div>Colonnes attendues : <span className="mono">{g.columns.join(', ')}</span></div>
-          <a href={`/api/template?format=${encodeURIComponent(id)}`}>Télécharger un fichier d’exemple pour ce format</a>
+          <div>{texts.columns} <span className="mono">{g.columns.join(', ')}</span></div>
+          <a href={`/api/template?format=${encodeURIComponent(id)}`}>{texts.example}</a>
         </div>
       ) : (
-        <p className="small muted">Détection automatique : le format est reconnu d’après la ligne d’en-tête. Choisissez un format pour voir les colonnes attendues et un exemple.</p>
+        <p className="small muted">{texts.auto}</p>
       )}
     </>
   );

@@ -2,6 +2,7 @@ import { deleteReportedBalanceAction, saveReportedBalancesAction } from '@/app/a
 import { Flash } from '@/components/Flash';
 import { StatusBadge } from '@/components/ui';
 import { getI18n } from '@/i18n/server';
+import { fill } from '@/i18n/ui';
 import { requireCtx } from '@/server/auth/next';
 import { listSources } from '@/server/services/imports';
 import { defaultReconciliationDate, isCalendarDate, reconcile } from '@/server/services/reconciliation';
@@ -9,7 +10,7 @@ import { defaultReconciliationDate, isCalendarDate, reconcile } from '@/server/s
 export default async function ReconciliationPage({ searchParams }: { searchParams: Promise<{ date?: string; ok?: string; error?: string }> }) {
   const sp = await searchParams;
   const { ctx } = await requireCtx();
-  const { t } = await getI18n();
+  const { t, locale } = await getI18n();
   const date = sp.date && isCalendarDate(sp.date) ? sp.date : defaultReconciliationDate();
   const [rows, srcs] = await Promise.all([reconcile(ctx, date), listSources(ctx)]);
   const gaps = rows.filter((r) => r.status === 'gap').length;
@@ -22,11 +23,11 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
         <div><h1>{t('rec.title')}</h1><p className="subtitle">{t('rec.subtitle')}</p></div>
         <form method="get" className="row"><label>{t('common.date')}<input type="date" name="date" defaultValue={date} /></label><button className="btn" type="submit">OK</button></form>
       </div>
-      <Flash ok={sp.ok} error={sp.error} />
+      <Flash ok={sp.ok} error={sp.error} locale={locale} />
 
       <div className={`alert ${gaps ? 'alert-bad' : missing ? 'alert-warn' : 'alert-ok'}`}>
         <b>{gaps ? `${gaps} ${t('rec.gaps')}` : missing ? `${missing} ${t('rec.missing')}` : t('rec.allOk')}</b>
-        <div className="small">Un écart signale presque toujours une transaction manquante (import incomplet, frais non exportés, staking non listé) ou un transfert interne mal apparié. Corrigez la source, puis relancez le calcul.</div>
+        <div className="small">{t('rec.gapHint')}</div>
       </div>
 
       <div className="card">
@@ -47,7 +48,7 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
             ))}</tbody>
           </table></div>
         )}
-        <p className="small muted">Solde calculé = somme des entrées, sorties et frais importés jusqu’au {date} à minuit (heure suisse), après les soldes d’ouverture. Tolérance : 0.00000001.</p>
+        <p className="small muted">{fill(t('rec.calcNote'), { date })}</p>
       </div>
 
       {ctx.role !== 'viewer' && srcs.length > 0 && (
@@ -58,7 +59,7 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
             <label>{t('common.source')}<select name="sourceId">{srcs.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label>
             <label>{t('common.asset')}<input name="asset" placeholder="BTC" style={{ width: 90 }} /></label>
             <label>{t('rec.reported')} ({date})<input name="quantity" inputMode="decimal" placeholder="0.029985" style={{ width: 160 }} /></label>
-            <label>{t('rec.evidence')}<input name="evidence" maxLength={200} placeholder="Relevé Kraken 31.12" /></label>
+            <label>{t('rec.evidence')}<input name="evidence" maxLength={200} placeholder={t('rec.evidencePh')} /></label>
           </div>
           <label className="small">Ou un fichier CSV (colonnes <span className="mono">source,asset,date,balance,evidence</span>, « source » = nom du wallet ou de l’exchange dans Crypto2Books) <input type="file" name="file" accept=".csv,text/csv" /></label>
           <div><button className="btn btn-primary" type="submit">{t('rec.save')}</button></div>

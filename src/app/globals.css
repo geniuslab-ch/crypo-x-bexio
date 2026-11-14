@@ -193,3 +193,14 @@ pre.evidence { background: #faf9f6; border: 1px solid var(--line); border-radius
 @media (max-width: 520px) {
   .grid-4, .grid-3 { grid-template-columns: 1fr; }
 }
+
+/* ---------- Language switch ---------- */
+.lang-links { display: inline-flex; gap: 2px; font-size: 11px; font-weight: 700; }
+.lang-links a { padding: 3px 6px; border-radius: 6px; text-decoration: none; color: var(--muted); }
+.lang-links a.on { background: var(--gold); color: var(--ink); }
+.lang-links a:hover:not(.on) { color: var(--text); }
+.sidebar .lang-links a { color: #a9a59a; }
+.sidebar .lang-links a.on { color: var(--ink); }
+.sidebar .lang-links a:hover:not(.on) { color: #fff; }
+.auth-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.auth-top a.small { text-decoration: none; }

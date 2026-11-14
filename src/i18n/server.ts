@@ -1,10 +1,9 @@
 import 'server-only';
-import { currentSession } from '@/server/auth/next';
-import { CLASSIFICATION_LABELS, LOCALES, translator, type Locale } from './dictionaries';
+import { CLASSIFICATION_LABELS, translator } from './dictionaries';
+import { getLocale } from './locale';
 
 export async function getI18n() {
-  const s = await currentSession();
-  const locale: Locale = s && (LOCALES as readonly string[]).includes(s.locale) ? (s.locale as Locale) : 'fr';
+  const locale = await getLocale();
   const t = translator(locale);
   const cls = (c: string) => CLASSIFICATION_LABELS[locale][c] ?? c;
   const nf = new Intl.NumberFormat(locale === 'en' ? 'en-CH' : `${locale}-CH`, { minimumFractionDigits: 2, maximumFractionDigits: 2 });

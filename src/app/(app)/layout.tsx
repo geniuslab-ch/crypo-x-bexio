@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { and, count, eq, inArray } from 'drizzle-orm';
 import { logoutAction, switchOrgAction } from '@/app/actions';
 import { ClientSwitcher } from '@/components/ClientSwitcher';
+import { LangLinks } from '@/components/LangLinks';
 import { NavLinks } from '@/components/NavLinks';
 import { getI18n } from '@/i18n/server';
 import { requireCtx } from '@/server/auth/next';
@@ -10,7 +11,7 @@ import { journalEntries, transactions } from '@/server/db/schema';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { ctx, session } = await requireCtx();
-  const { t } = await getI18n();
+  const { t, locale } = await getI18n();
   const [[review], [toValidate]] = await Promise.all([
     ctx.db.select({ n: count() }).from(transactions).where(and(eq(transactions.orgId, ctx.orgId), eq(transactions.reviewStatus, 'needs_review'))),
     ctx.db.select({ n: count() }).from(journalEntries).where(and(eq(journalEntries.orgId, ctx.orgId), inArray(journalEntries.status, ['draft', 'sync_failed']))),
@@ -41,6 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <NavLinks items={items} />
         <div className="sidebar-foot">
           <div>{session.email}</div>
+          <LangLinks current={locale} />
           <form action={logoutAction}><button className="btn" type="submit" style={{ width: '100%' }}>{t('nav.logout')}</button></form>
           <div className="swiss-line"><span className="swiss-flag" aria-hidden /> Made for Swiss accounting</div>
         </div>
