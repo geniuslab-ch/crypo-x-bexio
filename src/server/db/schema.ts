@@ -240,7 +240,12 @@ export const journalEntries = pgTable('journal_entries', {
   id: id(),
   orgId: orgId(),
   runId: uuid('run_id').notNull().references(() => calculationRuns.id),
-  transactionId: uuid('transaction_id').notNull().references(() => transactions.id),
+  /** Null for year-end entries, which belong to a closing rather than to one transaction. */
+  transactionId: uuid('transaction_id').references(() => transactions.id),
+  /** transaction | year_end_valuation | year_end_reversal */
+  kind: text('kind').notNull().default('transaction'),
+  /** Closed year a year-end entry belongs to. */
+  closingYear: integer('closing_year'),
   /** Hash of the lines; a later run producing the same content reuses the existing entry. */
   contentHash: text('content_hash').notNull(),
   entryDate: text('entry_date').notNull(), // YYYY-MM-DD, Europe/Zurich
@@ -257,6 +262,28 @@ export const journalEntries = pgTable('journal_entries', {
   uniqueIndex('journal_ref_uq').on(t.orgId, t.referenceNr),
   index('journal_tx_idx').on(t.transactionId),
 ]);
+
+/**
+ * Year-end closing of a calendar year: the 31.12 valuation of crypto assets (CO art. 960 / 960b) and the lock of the
+ * period. A closed year cannot receive new transactions, reclassifications, revaluations or entry changes.
+ */
+export const fiscalClosings = pgTable('fiscal_closings', {
+  id: id(),
+  orgId: orgId(),
+  year: integer('year').notNull(),
+  /** closed | reopened */
+  status: text('status').notNull(),
+  valuationMethod: text('valuation_method').notNull(),
+  rateBasis: text('rate_basis').notNull(),
+  /** Valuation table at 31.12 (per account: quantity, book value, rate and source, market value, adjustment). */
+  snapshot: jsonb('snapshot').notNull(),
+  valuationEntryId: uuid('valuation_entry_id'),
+  reversalEntryId: uuid('reversal_entry_id'),
+  closedBy: uuid('closed_by').notNull(),
+  closedAt: timestamp('closed_at', { withTimezone: true }).notNull().defaultNow(),
+  reopenedBy: uuid('reopened_by'),
+  reopenedAt: timestamp('reopened_at', { withTimezone: true }),
+}, (t) => [uniqueIndex('fiscal_closings_uq').on(t.orgId, t.year)]);
 
 export const journalLines = pgTable('journal_lines', {
   id: id(),

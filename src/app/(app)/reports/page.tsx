@@ -8,7 +8,7 @@ import { normalizeNumeric } from '@/server/services/transactions';
 
 const REPORTS = [
   ['transactions', 'rep.transactions'], ['realized', 'rep.realized'], ['holdings', 'rep.holdings'], ['wealth', 'rep.wealth'],
-  ['journal', 'rep.journal'], ['income', 'rep.income'], ['donations', 'rep.donations'], ['fees', 'rep.fees'],
+  ['closing', 'rep.closing'], ['journal', 'rep.journal'], ['income', 'rep.income'], ['donations', 'rep.donations'], ['fees', 'rep.fees'],
 ] as const;
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ year?: string; ok?: string; error?: string }> }) {

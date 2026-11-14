@@ -10,7 +10,9 @@ import { AppError, assertCanValidate, assertCanWrite, type Ctx } from '../contex
 import {
   accountingPolicies, calculationRuns, disposals, journalEntries, journalLines, lots, transactions,
 } from '../db/schema';
-import { effectiveClassification, loadTransactions, normalizeNumeric, toEngineInput, walletAccountSources, type LoadedTx } from './transactions';
+import {
+  applyOpeningCutoff, effectiveClassification, lastClosedYear, loadTransactions, normalizeNumeric, toEngineInput, walletAccountSources, type LoadedTx,
+} from './transactions';
 
 export interface RunIssue extends EngineIssue {
   occurredAt?: string;
@@ -59,19 +61,16 @@ export async function markPolicyReviewed(ctx: Ctx) {
 }
 
 /**
- * Runs a full calculation and (re)generates draft journal entries.
- * - Blocked runs (review needed, missing rates, missing history) generate no entries at all, because
- *   any gap can change the cost basis of later disposals.
- * - Validated/synced entries are never modified. If the new result differs, a conflict is reported.
+ * Everything a calculation depends on: the policy, the transactions after the opening cutoff, the ones still to
+ * review, the engine input and its hash (to tell whether a stored run is still up to date).
  */
-export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status: 'complete' | 'blocked'; issues: RunIssue[]; created: number; unchanged: number; superseded: number }> {
-  assertCanWrite(ctx);
+export async function prepareCalculation(ctx: Ctx) {
   const p = await getPolicy(ctx);
   const policy: AccountingPolicy = {
     method: p.costBasisMethod === 'wac' ? 'wac' : 'fifo',
     tradingFeeTreatment: p.tradingFeeTreatment === 'expense' ? 'expense' : 'capitalize',
   };
-  const loaded = await loadTransactions(ctx);
+  const { kept: loaded, excluded } = applyOpeningCutoff(await loadTransactions(ctx));
   const issues: RunIssue[] = [];
   const bookable: LoadedTx[] = [];
   for (const l of loaded) {
@@ -82,11 +81,25 @@ export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status:
     bookable.push(l);
   }
   const engineInput: AccountingTx[] = toEngineInput(bookable, await walletAccountSources(ctx));
+  const inputHash = sha256(JSON.stringify({ policy, engineInput }));
+  return { policy, loaded, excluded, issues, bookable, engineInput, inputHash };
+}
+
+/**
+ * Runs a full calculation and (re)generates draft journal entries.
+ * - Blocked runs (review needed, missing rates, missing history) generate no entries at all, because
+ *   any gap can change the cost basis of later disposals.
+ * - Validated/synced entries are never modified. If the new result differs, a conflict is reported.
+ */
+export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status: 'complete' | 'blocked'; issues: RunIssue[]; created: number; unchanged: number; superseded: number }> {
+  assertCanWrite(ctx);
+  const { policy, loaded, issues, engineInput, inputHash } = await prepareCalculation(ctx);
   const engine = runAccounting(engineInput, policy);
   const byId = new Map(loaded.map((l) => [l.tx.id, l]));
   for (const i of engine.issues) issues.push({ ...i, occurredAt: byId.get(i.txId)?.tx.occurredAt.toISOString() });
   const status = issues.length > 0 ? 'blocked' : 'complete';
-  const inputHash = sha256(JSON.stringify({ policy, engineInput }));
+  const closedYear = await lastClosedYear(ctx);
+  const closedUntil = closedYear === null ? null : `${closedYear}-12-31`;
 
   return ctx.db.transaction(async (db) => {
     const [run] = await db.insert(calculationRuns).values({
@@ -108,9 +121,10 @@ export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status:
     let unchanged = 0;
     let superseded = 0;
     if (status === 'complete') {
+      // Year-end entries belong to a closing, not to a transaction: the calculation leaves them alone.
       const existing = await db.select().from(journalEntries)
-        .where(and(eq(journalEntries.orgId, ctx.orgId), ne(journalEntries.status, 'superseded')));
-      const existingByTx = new Map(existing.map((e) => [e.transactionId, e]));
+        .where(and(eq(journalEntries.orgId, ctx.orgId), eq(journalEntries.kind, 'transaction'), ne(journalEntries.status, 'superseded')));
+      const existingByTx = new Map(existing.map((e) => [e.transactionId!, e]));
       const producedTx = new Set<string>();
       // A kept validated entry that differs from the new result means the saved journal no longer matches this
       // run's lines: the rounding ledger would then describe bookings that do not exist, so it is not stored.
@@ -134,6 +148,11 @@ export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status:
           unchanged++;
           continue;
         }
+        if (closedUntil && date <= closedUntil) {
+          conflict = true;
+          issues.push({ txId: r.txId, code: 'period_closed', message: `L’exercice ${closedYear} est clôturé : cette écriture du ${date} ne peut plus être créée ni modifiée. Rouvrez l’exercice si la correction est voulue.` });
+          continue;
+        }
         if (prev && prev.status !== 'draft') {
           conflict = true;
           issues.push({ txId: r.txId, code: 'not_bookable', message: `Le nouveau résultat diffère de l’écriture validée ${prev.referenceNr}. Passez une correction explicite : une écriture validée n’est jamais modifiée automatiquement.` });
@@ -148,13 +167,13 @@ export async function runCalculation(ctx: Ctx): Promise<{ runId: string; status:
       }
       // Drafts whose transaction no longer produces a booking are superseded.
       for (const e of existing) {
-        if (producedTx.has(e.transactionId)) continue;
+        if (producedTx.has(e.transactionId!)) continue;
         if (e.status === 'draft') {
           await db.update(journalEntries).set({ status: 'superseded' }).where(eq(journalEntries.id, e.id));
           superseded++;
         } else {
           conflict = true;
-          issues.push({ txId: e.transactionId, code: 'not_bookable', message: `L’écriture validée ${e.referenceNr} ne correspond plus au calcul. Passez une extourne explicite.` });
+          issues.push({ txId: e.transactionId!, code: 'not_bookable', message: `L’écriture validée ${e.referenceNr} ne correspond plus au calcul. Passez une extourne explicite.` });
         }
       }
       const roundingLedger = conflict ? null : [...exact.keys()].sort().map((key) => {
@@ -208,6 +227,12 @@ export async function setEntriesValidated(ctx: Ctx, entryIds: string[], validate
   const from = validated ? 'draft' : 'validated';
   const target = rows.filter((r) => r.status === from);
   if (target.length === 0) return 0;
+  if (!validated) {
+    // Year-end entries are removed by reopening the year; entries of a closed year stay validated.
+    if (target.some((t) => t.kind !== 'transaction')) throw new AppError('conflict', 'closing_entry_managed_by_closing');
+    const closedYear = await lastClosedYear(ctx);
+    if (closedYear !== null && target.some((t) => t.entryDate <= `${closedYear}-12-31`)) throw new AppError('conflict', 'period_closed');
+  }
   await ctx.db.transaction(async (db) => {
     await db.update(journalEntries).set(validated
       ? { status: 'validated', validatedBy: ctx.userId, validatedAt: new Date() }

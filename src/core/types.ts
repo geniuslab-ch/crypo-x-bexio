@@ -22,6 +22,7 @@ export const CLASSIFICATIONS = [
   'donation_received',
   'endowment_received',
   'grant_paid',
+  'opening_balance',
   'defi',
   'liquidity_pool',
   'nft_purchase',
@@ -49,6 +50,7 @@ export const BOOKABLE_CLASSIFICATIONS: ReadonlySet<Classification> = new Set<Cla
   'donation_received',
   'endowment_received',
   'grant_paid',
+  'opening_balance',
 ]);
 
 /** Gifts received and given (donations, foundation endowments, grants paid for the purpose). */

@@ -61,7 +61,7 @@ export default async function TxDetail({ params, searchParams }: { params: Promi
             <form action={classifyAction} className="stack">
               <input type="hidden" name="txId" value={id} />
               <select name="classification" defaultValue={current}>
-                {CLASSIFICATIONS.filter((c) => classificationAllowed(kind, c) || c === current).map((c) => <option key={c} value={c}>{cls(c)}</option>)}
+                {CLASSIFICATIONS.filter((c) => (classificationAllowed(kind, c) && c !== 'opening_balance') || c === current).map((c) => <option key={c} value={c}>{cls(c)}</option>)}
               </select>
               <label className="inline"><input type="checkbox" name="remember" /> {t('tx.remember')} (<span className="mono">{l.tx.rawType}</span>)</label>
               <div className="row">

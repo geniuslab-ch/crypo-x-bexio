@@ -50,13 +50,24 @@ const MESSAGES: Record<string, string> = {
   disconnected: 'bexio déconnecté.',
   run_complete: 'Calcul terminé.',
   run_blocked: 'Calcul bloqué : voir les points à résoudre.',
+  period_closed: 'Exercice clôturé : cette opération n’est plus possible. Rouvrez l’exercice si la correction est voulue.',
+  closing_entry_managed_by_closing: 'Les écritures de clôture se retirent en rouvrant l’exercice (page « Clôture »).',
+  opening_balance_managed_on_closing_page: 'Les soldes d’ouverture se gèrent sur la page « Clôture ».',
+  only_last_closed_year_can_be_reopened: 'Seul le dernier exercice clôturé peut être rouvert.',
+  closing_entries_already_in_bexio: 'Les écritures de clôture sont déjà dans bexio : supprimez-les d’abord dans bexio, puis contactez le support pour rouvrir.',
+  opening_balances_other_year: 'Des soldes d’ouverture existent déjà pour une autre date : supprimez-les d’abord.',
+  invalid_year: 'Exercice invalide.',
+  closing_blocked: 'Clôture impossible : voir les points à résoudre dans l’aperçu.',
+  year_closed: 'Exercice clôturé.',
+  year_reopened: 'Exercice rouvert : les écritures de clôture ont été retirées.',
+  opening_deleted: 'Solde d’ouverture supprimé.',
 };
 
 const LABELS: Record<string, string> = {
   imported: 'importées', duplicates: 'doublons', issues: 'lignes rejetées / problèmes', created: 'écritures créées', unchanged: 'inchangées',
   validated: 'validées', unvalidated: 'repassées en brouillon', synced: 'envoyées à bexio', failed: 'échecs', recovered: 'retrouvées dans bexio',
   accounts: 'comptes chargés', years: 'exercices', rates_inserted: 'cours ajoutés', tax_values_inserted: 'valeurs fiscales ajoutées', replaced: 'remplacés', skipped: 'ignorés (déjà présents)',
-  errors: 'erreurs', confirmed: 'confirmées',
+  errors: 'erreurs', confirmed: 'confirmées', closing_entries: 'écritures de clôture créées (validées)', opening_added: 'soldes d’ouverture ajoutés',
 };
 
 /** Turns a stored message code (or `code|label:n` list) into French text. */

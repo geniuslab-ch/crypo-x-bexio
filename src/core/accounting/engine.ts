@@ -67,7 +67,7 @@ export interface TxResult {
   realizedGain: Dec;
 }
 
-export type IssueCode = 'insufficient_lots' | 'missing_rate' | 'not_bookable' | 'needs_review';
+export type IssueCode = 'insufficient_lots' | 'missing_rate' | 'not_bookable' | 'needs_review' | 'period_closed';
 
 export interface EngineIssue {
   txId: string;
@@ -90,6 +90,16 @@ export interface EngineResult {
   results: TxResult[];
   issues: EngineIssue[];
   holdings: Map<string, { quantity: Dec; cost: Dec; lots: HoldingLot[] }>;
+  /** Holdings per crypto account key (crypto_asset:BTC or crypto_asset:BTC@<wallet>), for year-end valuation. */
+  pools: PoolHolding[];
+}
+
+export interface PoolHolding {
+  key: string;
+  asset: string;
+  wallet: string | null;
+  quantity: Dec;
+  cost: Dec;
 }
 
 const FEE_CAPITALIZABLE = new Set<Classification>(['buy', 'swap', 'sell']);
@@ -114,6 +124,7 @@ const COUNTERPART: Partial<Record<Classification, { key: string; side: 'in' | 'o
 interface Pool {
   lots: HoldingLot[];
   asset: string;
+  wallet: string | null;
 }
 
 /**
@@ -135,7 +146,7 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
     const k = `${asset}\u0000${wallet ?? ''}`;
     let p = pools.get(k);
     if (!p) {
-      p = { lots: [], asset };
+      p = { lots: [], asset, wallet: wallet ?? null };
       pools.set(k, p);
     }
     return p;
@@ -144,6 +155,24 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
   for (const tx of txs) {
     if (!BOOKABLE_CLASSIFICATIONS.has(tx.classification)) {
       issues.push({ txId: tx.id, code: 'not_bookable', message: `Les transactions « ${tx.classification} » ne sont pas comptabilisées automatiquement en phase 1` });
+      continue;
+    }
+    if (tx.classification === 'opening_balance') {
+      // Balance carried forward from books kept before Crypto2Books: it is already in the opening balance sheet in
+      // bexio, so it creates lots (quantity and acquisition cost) but no booking.
+      const acquisitions: Acquisition[] = [];
+      let missing = false;
+      for (const m of tx.movements) {
+        if (m.direction !== 'in' || isFiat(m.asset)) continue;
+        if (m.chfValue === null) { missing = true; continue; }
+        const lotId = `${tx.id}#${++lotSeq}`;
+        const qty = new D(m.quantity);
+        const cost = new D(m.chfValue);
+        addLot(pool(m.asset, tx.wallet), { lotId, asset: m.asset, acquiredAt: tx.occurredAt, quantity: qty, remaining: qty, cost, remainingCost: cost }, policy.method);
+        acquisitions.push({ txId: tx.id, lotId, asset: m.asset, quantity: qty.toString(), costChf: cost.toString(), acquiredAt: tx.occurredAt });
+      }
+      if (missing) issues.push({ txId: tx.id, code: 'missing_rate', message: 'Solde d’ouverture sans coût d’acquisition CHF' });
+      results.push({ txId: tx.id, acquisitions, disposals: [], postings: [], realizedGain: ZERO });
       continue;
     }
     const isTransfer = tx.classification === 'internal_transfer';
@@ -282,8 +311,15 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
   }
 
   const holdings = new Map<string, { quantity: Dec; cost: Dec; lots: HoldingLot[] }>();
+  const poolHoldings: PoolHolding[] = [];
   for (const p of pools.values()) {
     const lots = p.lots.filter((l) => l.remaining.gt(0));
+    if (lots.length > 0) {
+      poolHoldings.push({
+        key: cryptoAssetKey(p.asset, p.wallet), asset: p.asset, wallet: p.wallet,
+        quantity: lots.reduce((a, l) => a.plus(l.remaining), ZERO), cost: lots.reduce((a, l) => a.plus(l.remainingCost), ZERO),
+      });
+    }
     const h = holdings.get(p.asset) ?? { quantity: ZERO, cost: ZERO, lots: [] };
     holdings.set(p.asset, {
       quantity: lots.reduce((a, l) => a.plus(l.remaining), h.quantity),
@@ -291,7 +327,8 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
       lots: [...h.lots, ...lots],
     });
   }
-  return { results, issues, holdings };
+  poolHoldings.sort((a, b) => a.key.localeCompare(b.key));
+  return { results, issues, holdings, pools: poolHoldings };
 }
 
 function addLot(p: Pool, lot: HoldingLot, method: CostBasisMethod) {

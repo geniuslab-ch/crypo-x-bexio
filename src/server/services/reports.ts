@@ -8,7 +8,7 @@ import { taxNotes, type LegalForm } from '@/core/legalForms';
 import { DONATION_CLASSIFICATIONS, INCOME_CLASSIFICATIONS, type Classification } from '@/core/types';
 import { rateTableLookup, zurichDate } from '@/core/valuation/rateTable';
 import type { Ctx } from '../context';
-import { accountMappings, calculationRuns, disposals, priceRates, taxValues } from '../db/schema';
+import { accountMappings, calculationRuns, disposals, fiscalClosings, priceRates, taxValues } from '../db/schema';
 import { listEntries } from './calculation';
 import { getOrgProfile } from './organization';
 import { effectiveClassification, loadTransactions, normalizeNumeric, toEngineInput, toValuedMovement, walletAccountSources } from './transactions';
@@ -20,7 +20,7 @@ export interface Report {
   rows: (string | number | null)[][];
 }
 
-export const REPORT_TYPES = ['transactions', 'realized', 'holdings', 'wealth', 'journal', 'income', 'donations', 'fees'] as const;
+export const REPORT_TYPES = ['transactions', 'realized', 'holdings', 'wealth', 'closing', 'journal', 'income', 'donations', 'fees'] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 
 const DISCLAIMER = 'Document de support comptable généré par Crypto2Books. Ne constitue pas un conseil fiscal; à valider par votre fiduciaire.';
@@ -129,7 +129,7 @@ export async function buildReport(ctx: Ctx, type: ReportType, opts: { year: numb
 
   if (type === 'holdings') {
     const valuationDate = opts.valuationDate ?? (opts.year ? `${opts.year}-12-31` : zurichDate(new Date()));
-    const cutoff = new Date(`${valuationDate}T23:59:59+01:00`);
+    const cutoff = new Date(`${valuationDate}T23:59:59.999+01:00`);
     const loaded = (await loadTransactions(ctx)).filter((l) => l.tx.occurredAt <= cutoff);
     const policyRow = (await latestCompleteRun(ctx))?.policySnapshot as AccountingPolicy | undefined;
     const policy: AccountingPolicy = policyRow ?? { method: 'fifo', tradingFeeTreatment: 'capitalize' };
@@ -159,6 +159,34 @@ export async function buildReport(ctx: Ctx, type: ReportType, opts: { year: numb
         ['Problèmes ouverts', engine.issues.length ? `${engine.issues.length} (résultats partiels)` : 'aucun'],
         ['Note', 'Valeur comptable vs valeur de marché. Les valeurs fiscales (Kursliste AFC) peuvent différer.']]),
       columns: ['Actif', 'Quantité', 'Coût CHF', 'Cours CHF', 'Valeur CHF', 'Latent CHF', 'Source du cours'],
+      rows,
+    };
+  }
+
+  if (type === 'closing') {
+    // Year-end valuation table stored when the year was closed (evidence for the audit file).
+    const year = opts.year ?? new Date().getFullYear() - 1;
+    const [c] = await ctx.db.select().from(fiscalClosings).where(and(eq(fiscalClosings.orgId, ctx.orgId), eq(fiscalClosings.year, year)));
+    const title = `Évaluation de clôture des actifs numériques au 31.12.${year}`;
+    if (!c || c.status !== 'closed') return { title, meta: baseMeta(ctx, [['Exercice', String(year)], ['Statut', 'Exercice non clôturé']]), columns: [], rows: [] };
+    const snap = c.snapshot as { key: string; asset: string; quantity: string; bookValue: string; rate: string | null; rateSource: string | null; marketValue: string | null; adjustment: string }[];
+    const mappingRows = await ctx.db.select().from(accountMappings).where(eq(accountMappings.orgId, ctx.orgId));
+    const mappings = new Map(mappingRows.map((m) => [m.key, m.bexioAccountNo]));
+    let book = ZERO; let market = ZERO; let adj = ZERO;
+    const rows: Report['rows'] = snap.map((r) => {
+      book = book.plus(r.bookValue); market = market.plus(r.marketValue ?? '0'); adj = adj.plus(r.adjustment);
+      return [r.asset, resolveMapping(r.key, mappings) ?? `(${r.key})`, r.quantity, r.bookValue, r.rate, r.marketValue, r.adjustment,
+        new D(r.bookValue).plus(r.adjustment).toFixed(2), r.rateSource];
+    });
+    rows.push(['TOTAL', '', '', book.toFixed(2), '', market.toFixed(2), adj.toFixed(2), book.plus(adj).toFixed(2), '']);
+    return {
+      title,
+      meta: baseMeta(ctx, [['Exercice', String(year)], ['Clôturé le', c.closedAt.toISOString()],
+        ['Méthode', c.valuationMethod === 'market' ? 'Valeur de marché (CO art. 960b, cours observable sur un marché actif)' : 'Principe de la valeur la plus basse (CO art. 960 al. 2) : dépréciation seulement'],
+        ['Valeur unitaire', c.rateBasis === 'tax_value' ? 'Valeur fiscale officielle (Kursliste AFC)' : 'Cours de marché documenté au 31.12'],
+        ['Écritures', 'Évaluation datée du 31.12, extournée le 1.1 suivant (le coût d’acquisition reste la base des résultats réalisés)'],
+        ...(await legalMeta(ctx))]),
+      columns: ['Actif', 'Compte bexio', 'Quantité au 31.12', 'Valeur comptable CHF', 'Valeur unitaire CHF', 'Valeur de marché CHF', 'Correction CHF', 'Valeur au bilan CHF', 'Source de la valeur'],
       rows,
     };
   }

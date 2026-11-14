@@ -22,6 +22,8 @@ export const ACCOUNT_KEYS = [
   'donation_income',
   'foundation_capital',
   'grants_expense',
+  'valuation_loss',
+  'valuation_gain',
 ] as const;
 
 export function cryptoAssetKey(asset: string, wallet?: string | null): string {

@@ -94,10 +94,13 @@ export async function setManualClassification(
   assertCanWrite(ctx);
   if (classification && !CLASSIFICATIONS.includes(classification)) throw new AppError('invalid', 'invalid_classification');
   if (classification) await assertClassificationAllowed(ctx, classification);
+  // Opening balances are entered and removed on the closing page only.
+  if (classification === 'opening_balance') throw new AppError('invalid', 'opening_balance_managed_on_closing_page');
   const locked = await lockedTransactionIds(ctx);
   if (locked.has(txId)) throw new AppError('conflict', 'transaction_locked_by_validated_entry');
   const [l] = await loadTransactions(ctx, [txId]);
   if (!l) throw new AppError('not_found', 'transaction_not_found');
+  if (l.tx.manualClassification === 'opening_balance') throw new AppError('invalid', 'opening_balance_managed_on_closing_page');
   await ctx.db.transaction(async (db) => {
     await db.update(transactions).set({ manualClassification: classification }).where(eq(transactions.id, txId));
     await audit(db, {
