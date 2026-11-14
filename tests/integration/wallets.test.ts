@@ -4,7 +4,7 @@ import { registerUser } from '@/server/auth/service';
 import type { Ctx } from '@/server/context';
 import { closeDb } from '@/server/db';
 import { bexioAccounts, journalEntries, transactions } from '@/server/db/schema';
-import { setMapping } from '@/server/services/bexio';
+import { assetAccountKeys, setMapping } from '@/server/services/bexio';
 import { listEntries, runCalculation, setEntriesValidated } from '@/server/services/calculation';
 import { createSource, importFile } from '@/server/services/imports';
 import { walletAccountKey } from '@/core/accounting/accountKeys';
@@ -38,6 +38,8 @@ describe('per-wallet bexio accounts', () => {
       '2025-01-05T10:00:00Z,,,,OGY,400,,,t-2,0xabc,,',
     ].join('\n') });
     await importFile(ctx, { sourceId: pool, fileName: 'p.csv', content: [HEADER, '2025-01-05T10:05:00Z,,OGY,400,,,,,p-1,0xabc,,'].join('\n') });
+    // Each imported asset can get its own bexio account before any calculation.
+    expect(await assetAccountKeys(ctx)).toEqual(['crypto_asset:OGY', 'fiat_clearing:CHF']);
     const txs = await ctx.db.select().from(transactions).where(eq(transactions.orgId, ctx.orgId));
     expect(txs.filter((t) => t.classification === 'internal_transfer')).toHaveLength(2);
 
