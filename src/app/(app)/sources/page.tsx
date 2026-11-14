@@ -2,7 +2,8 @@ import { connectSourceAction, createSourceAction, disconnectSourceAction, import
 import { Flash, flashText } from '@/components/Flash';
 import { StatusBadge } from '@/components/ui';
 import { IMPORTERS, INTEGRATIONS } from '@/core/importers';
-import { FORMAT_GUIDES } from '@/core/importers/guides';
+import { localizedGuides } from '@/core/importers/guides';
+import { connectorText, integrationLabel, integrationNote } from '@/i18n/content';
 import { FormatPicker } from '@/components/FormatPicker';
 import { getI18n } from '@/i18n/server';
 import { requireCtx } from '@/server/auth/next';
@@ -16,35 +17,36 @@ export const maxDuration = 60;
 export default async function SourcesPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   const sp = await searchParams;
   const { ctx } = await requireCtx();
-  const { t, date } = await getI18n();
+  const { t, date, locale } = await getI18n();
   const [sources, batches] = await Promise.all([listSources(ctx), listBatches(ctx)]);
   const label = (id: string) => sources.find((s) => s.id === id)?.label ?? '—';
   const sl = (s: string) => t(`support.${s}` as never);
   return (
     <div className="stack">
       <div className="page-head"><div><h1>{t('src.title')}</h1><p className="subtitle">{t('src.security')}</p></div></div>
-      <Flash ok={sp.ok} error={sp.error} />
+      <Flash ok={sp.ok} error={sp.error} locale={locale} />
 
       <div className="grid grid-2">
         <form action={importFileAction} className="card stack">
           <h2>{t('src.import')}</h2>
           {sources.length === 0 ? <p className="muted">{t('src.add')} ↓</p> : <>
             <label>{t('common.source')}<select name="sourceId" required>{sources.map((s) => <option key={s.id} value={s.id}>{s.label} ({s.provider})</option>)}</select></label>
-            <FormatPicker label={t('src.parser')} autoLabel={t('src.autodetect')} guides={FORMAT_GUIDES}
+            <FormatPicker label={t('src.parser')} autoLabel={t('src.autodetect')} guides={localizedGuides(locale)}
+              texts={{ columns: t('fmt.columns'), example: t('fmt.example'), auto: t('fmt.auto') }}
               options={IMPORTERS.map((i) => ({ id: i.id, label: `${i.label} — ${sl(i.support)}` }))} />
             <label>{t('src.file')}<input type="file" name="file" accept=".csv,text/csv" required /></label>
             <button className="btn btn-primary" type="submit">{t('src.import')}</button>
           </>}
-          <p className="small muted"><a href="/api/template">{t('src.template')}</a> · CSV, UTF-8. Les formats « partiels » refusent un fichier non reconnu au lieu de deviner.</p>
+          <p className="small muted"><a href="/api/template">{t('src.template')}</a> · {t('src.templateNote')}</p>
         </form>
 
         <form action={createSourceAction} className="card stack">
           <h2>{t('src.add')}</h2>
-          <label>{t('src.provider')}<select name="provider" required>{INTEGRATIONS.map((i) => <option key={i.provider} value={i.provider}>{i.label}</option>)}</select></label>
-          <label>{t('src.label')}<input name="label" required maxLength={120} placeholder="Kraken – compte société" /></label>
-          <label>Type<select name="kind"><option value="exchange">{t('src.kind.exchange')}</option><option value="wallet">{t('src.kind.wallet')}</option></select></label>
+          <label>{t('src.provider')}<select name="provider" required>{INTEGRATIONS.map((i) => <option key={i.provider} value={i.provider}>{integrationLabel(i.label, locale)}</option>)}</select></label>
+          <label>{t('src.label')}<input name="label" required maxLength={120} placeholder={t('src.labelPlaceholder')} /></label>
+          <label>{t('src.type')}<select name="kind"><option value="exchange">{t('src.kind.exchange')}</option><option value="wallet">{t('src.kind.wallet')}</option></select></label>
           <button className="btn" type="submit">{t('src.add')}</button>
-          <p className="small muted">Kraken, Coinbase, Binance et les wallets : ajoutez d’abord la source ici, puis collez la clé API (ou les adresses) dans sa carte sous « Vos sources », plus bas sur cette page.</p>
+          <p className="small muted">{t('src.addHint')}</p>
         </form>
       </div>
 
@@ -58,39 +60,40 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
           </div>
           <label>{t('req.note')}<textarea name="note" maxLength={1000} rows={2} placeholder="Ex. comptes Earn, staking, export « Account statement » au format CSV" /></label>
           <label className="small">{t('req.sample')} <input type="file" name="file" accept=".csv,text/csv,.txt" /></label>
-          <p className="small muted">Un export réel nous permet de lire les bonnes colonnes. Retirez-en les données personnelles si vous le souhaitez : seules les colonnes et quelques lignes comptent. Ne joignez jamais de clé API, de mot de passe ni de phrase de récupération.</p>
+          <p className="small muted">{t('src.sampleHint')}</p>
           <div><button className="btn" type="submit">{t('req.send')}</button></div>
         </form>
       </details>
 
       {sources.length > 0 && (
         <div className="card stack">
-          <h2>Vos sources</h2>
+          <h2>{t('src.yours')}</h2>
           {sources.map((s) => {
-            const c = connectorFor(s.provider);
+            const base = connectorFor(s.provider);
+            const c = base ? connectorText(base, locale) : undefined;
             const masked = c ? maskedCredentials(c, s.encryptedCredentials) : [];
             const connected = masked.length > 0;
             return (
               <div key={s.id} className="source-row">
                 <div className="source-head">
-                  <div><b>{s.label}</b> <span className="muted small">({s.provider}) · dernière synchro : {s.lastSyncedAt ? date(s.lastSyncedAt) : t('common.never')}</span></div>
-                  {connected ? <span className="badge badge-ok">{c!.kind === 'wallet' ? 'Adresses suivies' : 'API connectée'}</span>
-                    : c ? <span className="badge">Non connectée</span> : <span className="badge">Import CSV</span>}
+                  <div><b>{s.label}</b> <span className="muted small">({s.provider}) · {t('src.lastSync')} : {s.lastSyncedAt ? date(s.lastSyncedAt) : t('common.never')}</span></div>
+                  {connected ? <span className="badge badge-ok">{c!.kind === 'wallet' ? t('src.addressesTracked') : t('src.apiConnected')}</span>
+                    : c ? <span className="badge">{t('src.notConnected')}</span> : <span className="badge">{t('src.csvImport')}</span>}
                 </div>
                 {s.syncNote ? (
                   <p className={`small ${s.syncNote.startsWith('failed:') ? 'neg' : 'muted'}`} style={{ margin: '4px 0 0' }}>
-                    {s.syncNote.startsWith('failed:') ? `Dernière synchronisation en échec : ${flashText(s.syncNote.slice(7))}` : s.syncNote}
+                    {s.syncNote.startsWith('failed:') ? `${t('src.syncFailed')} ${flashText(s.syncNote.slice(7), locale)}` : s.syncNote}
                   </p>
                 ) : null}
                 {c && connected ? (
                   <div className="source-actions">
                     <div className="small">{masked.map((m) => <div key={m.label}><span className="muted">{m.label} :</span> <span className="mono">{m.value}</span></div>)}</div>
-                    <form action={syncSourceAction}><input type="hidden" name="sourceId" value={s.id} /><button className="btn btn-primary" type="submit">Synchroniser</button></form>
-                    <form action={disconnectSourceAction}><input type="hidden" name="sourceId" value={s.id} /><button className="btn" type="submit">Déconnecter</button></form>
+                    <form action={syncSourceAction}><input type="hidden" name="sourceId" value={s.id} /><button className="btn btn-primary" type="submit">{t('src.sync')}</button></form>
+                    <form action={disconnectSourceAction}><input type="hidden" name="sourceId" value={s.id} /><button className="btn" type="submit">{t('src.disconnect')}</button></form>
                   </div>
                 ) : c ? (
                   <details className="source-connect" open>
-                    <summary>{c.kind === 'wallet' ? 'Ajouter les adresses publiques' : 'Connecter par API (lecture seule)'}</summary>
+                    <summary>{c.kind === 'wallet' ? t('src.addAddresses') : t('src.connectApi')}</summary>
                     <form action={connectSourceAction} className="stack" style={{ marginTop: 10 }}>
                       <input type="hidden" name="sourceId" value={s.id} />
                       <p className="small">{c.help}</p>
@@ -101,8 +104,8 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
                             : <input name={`cred_${f.name}`} type={f.secret ? 'password' : 'text'} required={!f.optional} placeholder={f.placeholder} autoComplete="off" spellCheck={false} />}
                         </label>
                       ))}
-                      <p className="small muted">{c.limits} Les clés sont chiffrées (AES-256) et ne sont jamais réaffichées.</p>
-                      <button className="btn btn-primary" type="submit">Vérifier et enregistrer</button>
+                      <p className="small muted">{c.limits} {t('src.keysEncrypted')}</p>
+                      <button className="btn btn-primary" type="submit">{t('src.verifySave')}</button>
                     </form>
                   </details>
                 ) : null}
@@ -134,7 +137,7 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
         <div className="table-wrap"><table className="table">
           <thead><tr><th>{t('src.provider')}</th><th>{t('src.csv')}</th><th>{t('src.api')}</th><th /></tr></thead>
           <tbody>{INTEGRATIONS.map((i) => (
-            <tr key={i.provider}><td><b>{i.label}</b></td><td><StatusBadge status={i.csv} label={sl(i.csv)} /></td><td><StatusBadge status={i.api} label={sl(i.api)} /></td><td className="small muted">{i.note}</td></tr>
+            <tr key={i.provider}><td><b>{integrationLabel(i.label, locale)}</b></td><td><StatusBadge status={i.csv} label={sl(i.csv)} /></td><td><StatusBadge status={i.api} label={sl(i.api)} /></td><td className="small muted">{integrationNote(i.provider, i.note, locale)}</td></tr>
           ))}</tbody>
         </table></div>
       </div>

@@ -3,20 +3,21 @@ import { desc, eq } from 'drizzle-orm';
 import { importRatesAction, runCalculationAction, validateEntriesAction } from '@/app/actions';
 import { Flash } from '@/components/Flash';
 import { Money, StatusBadge } from '@/components/ui';
-import { ACCOUNT_KEY_LABELS } from '@/i18n/dictionaries';
+import { ACCOUNT_KEY_LABELS, type Locale } from '@/i18n/dictionaries';
 import { getI18n } from '@/i18n/server';
+import { fill } from '@/i18n/ui';
 import { requireCtx } from '@/server/auth/next';
 import { priceRates } from '@/server/db/schema';
 import { getPolicy, latestRun, listEntries, type RunIssue } from '@/server/services/calculation';
 import { listSources } from '@/server/services/imports';
 import { normalizeNumeric } from '@/server/services/transactions';
 
-const baseLabel = (k: string) => ACCOUNT_KEY_LABELS[k]?.fr ?? (k.startsWith('crypto_asset:') ? `Crypto ${k.slice(13)}` : k.startsWith('fiat_clearing:') ? `Fiat ${k.slice(14)} (exchange)` : k);
+const baseLabel = (k: string, l: Locale) => ACCOUNT_KEY_LABELS[k]?.[l] ?? (k.startsWith('crypto_asset:') ? `Crypto ${k.slice(13)}` : k.startsWith('fiat_clearing:') ? `Fiat ${k.slice(14)} (exchange)` : k);
 
 export default async function AccountingPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string; show?: string }> }) {
   const sp = await searchParams;
   const { ctx } = await requireCtx();
-  const { t, date } = await getI18n();
+  const { t, date, locale } = await getI18n();
   const [policy, run, entries, rates, srcs] = await Promise.all([
     getPolicy(ctx), latestRun(ctx), listEntries(ctx),
     ctx.db.select().from(priceRates).where(eq(priceRates.orgId, ctx.orgId)).orderBy(desc(priceRates.rateDate)).limit(30),
@@ -26,7 +27,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
   const sourceName = new Map(srcs.map((s) => [s.id, s.label]));
   const keyLabel = (k: string) => {
     const at = k.indexOf('@');
-    return at === -1 ? baseLabel(k) : `${baseLabel(k.slice(0, at))} · ${sourceName.get(k.slice(at + 1)) ?? 'wallet'}`;
+    return at === -1 ? baseLabel(k, locale) : `${baseLabel(k.slice(0, at), locale)} · ${sourceName.get(k.slice(at + 1)) ?? 'wallet'}`;
   };
   const visible = entries.filter((e) => (sp.show === 'all' ? true : e.status !== 'superseded'));
   const issues = (run?.issues as RunIssue[] | undefined) ?? [];
@@ -37,7 +38,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
           {policy.reviewedByFiduciaryAt ? <span className="badge badge-ok">{t('acc.reviewed')} {date(policy.reviewedByFiduciaryAt)}</span> : <span className="badge badge-warn">{t('acc.notReviewed')}</span>}</p></div>
         <form action={runCalculationAction}><button className="btn btn-primary" type="submit">{t('acc.run')}</button></form>
       </div>
-      <Flash ok={sp.ok} error={sp.error} />
+      <Flash ok={sp.ok} error={sp.error} locale={locale} />
 
       {run && (
         <div className={`alert ${run.status === 'complete' && issues.length === 0 ? 'alert-ok' : 'alert-warn'}`}>
@@ -55,14 +56,14 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <h2 style={{ margin: 0 }}>{t('acc.entries')} ({visible.length})</h2>
           <div className="row">
-            <Link className="small" href={sp.show === 'all' ? '/accounting' : '/accounting?show=all'}>{sp.show === 'all' ? 'Masquer les remplacées' : 'Afficher l’historique complet'}</Link>
+            <Link className="small" href={sp.show === 'all' ? '/accounting' : '/accounting?show=all'}>{sp.show === 'all' ? t('acc.hideSuperseded') : t('acc.showHistory')}</Link>
             <button className="btn" type="submit" name="mode" value="unvalidate">{t('acc.unvalidateSelected')}</button>
             <button className="btn btn-primary" type="submit" name="mode" value="validate">{t('acc.validateSelected')}</button>
           </div>
         </div>
         {visible.length === 0 ? <p className="muted">{t('acc.noEntries')}</p> : (
           <div className="table-wrap"><table className="table">
-            <thead><tr><th /><th>{t('common.date')}</th><th>Référence</th><th>Libellé</th><th>{t('acc.debit')}</th><th>{t('acc.credit')}</th><th className="num">{t('acc.amount')}</th><th>{t('common.status')}</th></tr></thead>
+            <thead><tr><th /><th>{t('common.date')}</th><th>{t('acc.reference')}</th><th>{t('acc.label')}</th><th>{t('acc.debit')}</th><th>{t('acc.credit')}</th><th className="num">{t('acc.amount')}</th><th>{t('common.status')}</th></tr></thead>
             <tbody>{visible.map((e) => e.lines.map((l, i) => (
               <tr key={l.id}>
                 {i === 0 && <td rowSpan={e.lines.length}>{['draft', 'validated'].includes(e.status) && e.kind === 'transaction' && <input type="checkbox" name="entryId" value={e.id} defaultChecked={e.status === 'draft'} />}</td>}
@@ -77,15 +78,15 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
             )))}</tbody>
           </table></div>
         )}
-        <p className="small muted">Seules les écritures validées peuvent être envoyées à bexio. Une écriture validée n’est jamais modifiée automatiquement.</p>
+        <p className="small muted">{t('acc.validatedOnly')}</p>
       </form>
 
       {run?.status === 'complete' && Array.isArray(run.roundingLedger) && (
         <div className="card stack">
-          <h2 style={{ margin: 0 }}>Reports d’arrondi par compte</h2>
-          <p className="small muted">Les calculs se font en pleine précision ; bexio reçoit des montants au centime. Le reste d’arrondi de chaque compte est reporté sur sa prochaine écriture, pour que le total comptabilisé corresponde toujours au total exact. « En attente » = montant pas encore comptabilisé, toujours inférieur à un demi-centime sauf ajustement d’équilibre d’une écriture. État au dernier calcul du {date(run.createdAt)}.</p>
+          <h2 style={{ margin: 0 }}>{t('acc.rounding')}</h2>
+          <p className="small muted">{fill(t('acc.roundingIntro'), { date: date(run.createdAt) })}</p>
           <div className="table-wrap"><table className="table">
-            <thead><tr><th>Compte</th><th className="num">Total exact CHF</th><th className="num">Comptabilisé CHF</th><th className="num">Report en attente CHF</th></tr></thead>
+            <thead><tr><th>{t('acc.col.account')}</th><th className="num">{t('acc.col.exact')}</th><th className="num">{t('acc.col.booked')}</th><th className="num">{t('acc.col.carried')}</th></tr></thead>
             <tbody>{(run.roundingLedger as { key: string; exactChf: string; bookedChf: string; carriedChf: string }[]).map((r) => (
               <tr key={r.key}><td className="small">{keyLabel(r.key)}</td><td className="num mono small">{r.exactChf}</td><td className="num"><Money value={r.bookedChf} /></td>
                 <td className="num mono small">{r.carriedChf === '0' ? '0' : r.carriedChf}</td></tr>
@@ -96,8 +97,8 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
 
       {run?.status === 'complete' && !Array.isArray(run.roundingLedger) && issues.some((i) => i.code === 'not_bookable') && (
         <div className="card stack">
-          <h2 style={{ margin: 0 }}>Reports d’arrondi par compte</h2>
-          <p className="small muted">Non disponible : au moins une écriture validée ne correspond plus au calcul (voir les points à résoudre). Passez la correction, puis relancez le calcul.</p>
+          <h2 style={{ margin: 0 }}>{t('acc.rounding')}</h2>
+          <p className="small muted">{t('acc.roundingUnavailable')}</p>
         </div>
       )}
 
@@ -108,10 +109,10 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
           <input type="file" name="file" accept=".csv,text/csv" required />
           <label className="inline"><input type="checkbox" name="replace" /> {t('acc.replace')}</label>
           <button className="btn" type="submit">{t('acc.ratesImport')}</button>
-          <p className="small muted">CoinGecko : {process.env.COINGECKO_API_KEY ? 'configuré, les cours manquants sont récupérés automatiquement et enregistrés ici avec leur source.' : 'non configuré (COINGECKO_API_KEY). Aucun cours n’est inventé : importez vos cours documentés.'}</p>
+          <p className="small muted">{process.env.COINGECKO_API_KEY ? t('acc.coingeckoOn') : t('acc.coingeckoOff')}</p>
         </form>
         <div className="card">
-          <h2>{rates.length ? `${t('acc.rates')} (30 derniers)` : t('acc.rates')}</h2>
+          <h2>{rates.length ? fill(t('acc.last30'), { title: t('acc.rates') }) : t('acc.rates')}</h2>
           {rates.length === 0 ? <p className="muted">{t('common.none')}</p> : (
             <div className="table-wrap"><table className="table"><thead><tr><th>{t('common.asset')}</th><th>{t('common.date')}</th><th className="num">CHF</th><th>{t('common.source')}</th></tr></thead>
               <tbody>{rates.map((r) => <tr key={r.id}><td>{r.asset}</td><td>{r.rateDate}</td><td className="num mono">{normalizeNumeric(r.rate)}</td>

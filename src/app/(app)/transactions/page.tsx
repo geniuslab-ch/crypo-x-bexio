@@ -3,6 +3,7 @@ import { TxTable } from '@/components/TxTable';
 import { CLASSIFICATIONS } from '@/core/types';
 import { zurichDate } from '@/core/valuation/rateTable';
 import { getI18n } from '@/i18n/server';
+import { fill } from '@/i18n/ui';
 import { requireCtx } from '@/server/auth/next';
 import { listSources } from '@/server/services/imports';
 import { effectiveClassification, loadTransactions } from '@/server/services/transactions';
@@ -13,7 +14,7 @@ const PAGE = 500;
 export default async function TransactionsPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const { ctx } = await requireCtx();
-  const { t, cls, date } = await getI18n();
+  const { t, cls, date, locale } = await getI18n();
   const [all, sources] = await Promise.all([loadTransactions(ctx), listSources(ctx)]);
   const q = (sp.q ?? '').trim().toLowerCase();
   const rows = all.filter((l) => {
@@ -37,7 +38,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
         <div><h1>{t('tx.title')}</h1><p className="subtitle">{rows.length} / {all.length}</p></div>
         <a className="btn" href={`/api/reports/transactions?format=csv&${qs}`}>{t('tx.export')}</a>
       </div>
-      <Flash ok={sp.ok} error={sp.error} />
+      <Flash ok={sp.ok} error={sp.error} locale={locale} />
       <form className="card form-grid" method="get">
         <label>{t('common.search')}<input name="q" defaultValue={sp.q} placeholder="BTC, ID, hash…" /></label>
         <label>{t('common.source')}<select name="source" defaultValue={sp.source ?? ''}><option value="">{t('common.all')}</option>
@@ -52,8 +53,8 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
       </form>
       <div className="card">
         {rows.length === 0 ? <p className="muted">{t('tx.empty')}</p> : <TxTable rows={rows.slice(0, PAGE)} t={t as never} cls={cls} date={date} />}
-        {rows.length > PAGE && <p className="small muted">{PAGE} / {rows.length} — affinez les filtres ou exportez en CSV.</p>}
-        <p className="small muted">* frais dérivé : écart entre le montant retiré et le montant reçu lors d’un transfert entre vos comptes.</p>
+        {rows.length > PAGE && <p className="small muted">{fill(t('tx.refine'), { shown: PAGE, total: rows.length })}</p>}
+        <p className="small muted">{t('tx.derivedNote')}</p>
       </div>
     </div>
   );

@@ -1,5 +1,8 @@
-/** UI strings. French is the primary language; English and German are complete translations of the same keys. */
+import { UI_DE, UI_EN, UI_FR, UI_IT } from './ui';
+
+/** UI strings. French is the primary language; English, German and Italian are complete translations of the same keys. */
 const fr = {
+  ...UI_FR,
   'app.tagline': 'From crypto to books.',
   'nav.dashboard': 'Tableau de bord',
   'nav.transactions': 'Transactions',
@@ -257,6 +260,7 @@ export type MessageKey = keyof typeof fr;
 type Dict = Record<MessageKey, string>;
 
 const en: Dict = {
+  ...UI_EN,
   'app.tagline': 'From crypto to books.',
   'nav.dashboard': 'Dashboard', 'nav.transactions': 'Transactions', 'nav.review': 'To review', 'nav.sources': 'Wallets & exchanges',
   'nav.accounting': 'Accounting', 'nav.bexio': 'bexio integration', 'nav.reports': 'Reports', 'nav.fiduciary': 'Fiduciary space',
@@ -378,6 +382,7 @@ const en: Dict = {
 };
 
 const de: Dict = {
+  ...UI_DE,
   'app.tagline': 'From crypto to books.',
   'nav.dashboard': 'Übersicht', 'nav.transactions': 'Transaktionen', 'nav.review': 'Zu prüfen', 'nav.sources': 'Wallets & Börsen',
   'nav.accounting': 'Buchhaltung', 'nav.bexio': 'bexio-Integration', 'nav.reports': 'Berichte', 'nav.fiduciary': 'Treuhand-Bereich',
@@ -499,6 +504,7 @@ const de: Dict = {
 };
 
 const it: Dict = {
+  ...UI_IT,
   'app.tagline': 'Dalle cripto ai libri contabili.',
   'nav.dashboard': 'Panoramica', 'nav.transactions': 'Transazioni', 'nav.review': 'Da verificare', 'nav.sources': 'Wallet ed exchange',
   'nav.accounting': 'Contabilità', 'nav.bexio': 'Integrazione bexio', 'nav.reports': 'Rapporti', 'nav.fiduciary': 'Spazio fiduciario',
@@ -659,23 +665,46 @@ export const CLASSIFICATION_LABELS: Record<Locale, Record<string, string>> = {
   },
 };
 
-export const ACCOUNT_KEY_LABELS: Record<string, { fr: string; example: string }> = {
-  'crypto_asset:*': { fr: 'Actifs numériques (crypto)', example: 'ex. 1090 Actifs numériques' },
-  'fiat_clearing:*': { fr: 'Avoirs fiat sur exchange', example: 'ex. 1029 Compte exchange' },
-  bank_clearing: { fr: 'Compte de transfert banque ↔ exchange', example: 'ex. 1099 Compte de transfert' },
-  realized_gain: { fr: 'Gains réalisés', example: 'ex. 6950 Produits financiers' },
-  realized_loss: { fr: 'Pertes réalisées', example: 'ex. 6900 Charges financières' },
-  trading_fees: { fr: 'Frais de trading', example: 'ex. 6940 Frais bancaires' },
-  network_fees: { fr: 'Frais de réseau', example: 'ex. 6940 Frais bancaires' },
-  staking_income: { fr: 'Revenus de staking', example: 'ex. 6950 / 7500' },
-  mining_income: { fr: 'Revenus de minage', example: 'ex. 3xxx / 7500' },
-  airdrop_income: { fr: 'Revenus d’airdrops', example: 'ex. 7500 Autres produits' },
-  lending_income: { fr: 'Intérêts de prêts crypto', example: 'ex. 6950 Produits financiers' },
-  external_deposit_counterpart: { fr: 'Contrepartie des dépôts externes', example: 'ex. 2850 Compte privé / apport' },
-  external_withdrawal_counterpart: { fr: 'Contrepartie des retraits externes', example: 'ex. 2850 Compte privé' },
-  donation_income: { fr: 'Dons reçus (produit)', example: 'ex. 3xxx / 7500 Dons reçus' },
-  foundation_capital: { fr: 'Capital de la fondation (dotations)', example: 'ex. 2800 Capital de fondation' },
-  grants_expense: { fr: 'Dons et subventions versés (charge)', example: 'ex. 6xxx Dons / subventions versés' },
-  valuation_loss: { fr: 'Corrections de valeur des actifs numériques (charge, clôture)', example: 'ex. 6900 Charges financières' },
-  valuation_gain: { fr: 'Réévaluation des actifs numériques (produit, clôture)', example: 'ex. 6950 Produits financiers' },
+/** Labels and example accounts (Swiss SME chart of accounts) for each Crypto2Books account category. */
+type AccountLabel = Record<Locale, string> & { example: Record<Locale, string> };
+const al = (fr: string, de: string, it: string, en: string, ex: [string, string, string, string]): AccountLabel =>
+  ({ fr, de, it, en, example: { fr: ex[0], de: ex[1], it: ex[2], en: ex[3] } });
+
+export const ACCOUNT_KEY_LABELS: Record<string, AccountLabel> = {
+  'crypto_asset:*': al('Actifs numériques (crypto)', 'Digitale Vermögenswerte (Krypto)', 'Attivi digitali (cripto)', 'Digital assets (crypto)',
+    ['ex. 1090 Actifs numériques', 'z. B. 1090 Digitale Vermögenswerte', 'es. 1090 Attivi digitali', 'e.g. 1090 Digital assets']),
+  'fiat_clearing:*': al('Avoirs fiat sur exchange', 'Fiat-Guthaben auf Börse', 'Averi fiat su exchange', 'Fiat balance on exchange',
+    ['ex. 1029 Compte exchange', 'z. B. 1029 Börsenkonto', 'es. 1029 Conto exchange', 'e.g. 1029 Exchange account']),
+  bank_clearing: al('Compte de transfert banque ↔ exchange', 'Transferkonto Bank ↔ Börse', 'Conto di trasferimento banca ↔ exchange', 'Bank ↔ exchange transfer account',
+    ['ex. 1099 Compte de transfert', 'z. B. 1099 Transferkonto', 'es. 1099 Conto di trasferimento', 'e.g. 1099 Transfer account']),
+  realized_gain: al('Gains réalisés', 'Realisierte Gewinne', 'Utili realizzati', 'Realised gains',
+    ['ex. 6950 Produits financiers', 'z. B. 6950 Finanzertrag', 'es. 6950 Ricavi finanziari', 'e.g. 6950 Financial income']),
+  realized_loss: al('Pertes réalisées', 'Realisierte Verluste', 'Perdite realizzate', 'Realised losses',
+    ['ex. 6900 Charges financières', 'z. B. 6900 Finanzaufwand', 'es. 6900 Costi finanziari', 'e.g. 6900 Financial expenses']),
+  trading_fees: al('Frais de trading', 'Handelsgebühren', 'Commissioni di trading', 'Trading fees',
+    ['ex. 6940 Frais bancaires', 'z. B. 6940 Bankspesen', 'es. 6940 Spese bancarie', 'e.g. 6940 Bank charges']),
+  network_fees: al('Frais de réseau', 'Netzwerkgebühren', 'Commissioni di rete', 'Network fees',
+    ['ex. 6940 Frais bancaires', 'z. B. 6940 Bankspesen', 'es. 6940 Spese bancarie', 'e.g. 6940 Bank charges']),
+  staking_income: al('Revenus de staking', 'Staking-Erträge', 'Ricavi da staking', 'Staking income',
+    ['ex. 6950 / 7500', 'z. B. 6950 / 7500', 'es. 6950 / 7500', 'e.g. 6950 / 7500']),
+  mining_income: al('Revenus de minage', 'Mining-Erträge', 'Ricavi da mining', 'Mining income',
+    ['ex. 3xxx / 7500', 'z. B. 3xxx / 7500', 'es. 3xxx / 7500', 'e.g. 3xxx / 7500']),
+  airdrop_income: al('Revenus d’airdrops', 'Airdrop-Erträge', 'Ricavi da airdrop', 'Airdrop income',
+    ['ex. 7500 Autres produits', 'z. B. 7500 Übriger Ertrag', 'es. 7500 Altri ricavi', 'e.g. 7500 Other income']),
+  lending_income: al('Intérêts de prêts crypto', 'Zinsen aus Krypto-Darlehen', 'Interessi su prestiti cripto', 'Crypto lending interest',
+    ['ex. 6950 Produits financiers', 'z. B. 6950 Finanzertrag', 'es. 6950 Ricavi finanziari', 'e.g. 6950 Financial income']),
+  external_deposit_counterpart: al('Contrepartie des dépôts externes', 'Gegenkonto externe Einzahlungen', 'Contropartita dei depositi esterni', 'Counterpart for external deposits',
+    ['ex. 2850 Compte privé / apport', 'z. B. 2850 Privatkonto / Einlage', 'es. 2850 Conto privato / apporto', 'e.g. 2850 Private account / contribution']),
+  external_withdrawal_counterpart: al('Contrepartie des retraits externes', 'Gegenkonto externe Auszahlungen', 'Contropartita dei prelievi esterni', 'Counterpart for external withdrawals',
+    ['ex. 2850 Compte privé', 'z. B. 2850 Privatkonto', 'es. 2850 Conto privato', 'e.g. 2850 Private account']),
+  donation_income: al('Dons reçus (produit)', 'Erhaltene Spenden (Ertrag)', 'Donazioni ricevute (ricavo)', 'Donations received (income)',
+    ['ex. 3xxx / 7500 Dons reçus', 'z. B. 3xxx / 7500 Erhaltene Spenden', 'es. 3xxx / 7500 Donazioni ricevute', 'e.g. 3xxx / 7500 Donations received']),
+  foundation_capital: al('Capital de la fondation (dotations)', 'Stiftungskapital (Zustiftungen)', 'Capitale della fondazione (dotazioni)', 'Foundation capital (endowments)',
+    ['ex. 2800 Capital de fondation', 'z. B. 2800 Stiftungskapital', 'es. 2800 Capitale di fondazione', 'e.g. 2800 Foundation capital']),
+  grants_expense: al('Dons et subventions versés (charge)', 'Ausgerichtete Spenden und Vergabungen (Aufwand)', 'Donazioni e sussidi versati (costo)', 'Donations and grants paid (expense)',
+    ['ex. 6xxx Dons / subventions versés', 'z. B. 6xxx Spenden / Vergabungen', 'es. 6xxx Donazioni / sussidi versati', 'e.g. 6xxx Donations / grants paid']),
+  valuation_loss: al('Corrections de valeur des actifs numériques (charge, clôture)', 'Wertberichtigungen digitaler Vermögenswerte (Aufwand, Abschluss)', 'Rettifiche di valore degli attivi digitali (costo, chiusura)', 'Value adjustments on digital assets (expense, closing)',
+    ['ex. 6900 Charges financières', 'z. B. 6900 Finanzaufwand', 'es. 6900 Costi finanziari', 'e.g. 6900 Financial expenses']),
+  valuation_gain: al('Réévaluation des actifs numériques (produit, clôture)', 'Aufwertung digitaler Vermögenswerte (Ertrag, Abschluss)', 'Rivalutazione degli attivi digitali (ricavo, chiusura)', 'Revaluation of digital assets (income, closing)',
+    ['ex. 6950 Produits financiers', 'z. B. 6950 Finanzertrag', 'es. 6950 Ricavi finanziari', 'e.g. 6950 Financial income']),
 };
