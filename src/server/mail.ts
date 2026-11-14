@@ -3,7 +3,7 @@ import 'server-only';
 /**
  * Transactional e-mail through the Brevo API (brevo.com, POST /v3/smtp/email), without an extra dependency.
  * Needs BREVO_API_KEY (restricted key with "Emails transactionnels" access) and MAIL_FROM, e.g.
- * "Crypto2Books <no-reply@crypto2books.ch>", whose address must be a sender or domain verified in Brevo.
+ * "Crypto2Books <contact@crypto2books.ch>", whose address must be a sender or domain verified in Brevo.
  * Outside production, when no key is set, the message is printed to the server log instead so the flow can be tested locally.
  */
 export interface Mail { to: string; subject: string; text: string }
