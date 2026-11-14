@@ -61,13 +61,17 @@ const MESSAGES: Record<string, string> = {
   year_closed: 'Exercice clôturé.',
   year_reopened: 'Exercice rouvert : les écritures de clôture ont été retirées.',
   opening_deleted: 'Solde d’ouverture supprimé.',
+  platform_requested: 'Demande enregistrée. Nous vous prévenons dès que la plateforme est disponible.',
+  invalid_date: 'Date invalide (AAAA-MM-JJ).',
+  invalid_asset: 'Actif invalide.',
+  invalid_quantity: 'Solde invalide (0 ou plus).',
 };
 
 const LABELS: Record<string, string> = {
   imported: 'importées', duplicates: 'doublons', issues: 'lignes rejetées / problèmes', created: 'écritures créées', unchanged: 'inchangées',
   validated: 'validées', unvalidated: 'repassées en brouillon', synced: 'envoyées à bexio', failed: 'échecs', recovered: 'retrouvées dans bexio',
   accounts: 'comptes chargés', years: 'exercices', rates_inserted: 'cours ajoutés', tax_values_inserted: 'valeurs fiscales ajoutées', replaced: 'remplacés', skipped: 'ignorés (déjà présents)',
-  errors: 'erreurs', confirmed: 'confirmées', closing_entries: 'écritures de clôture créées (validées)', opening_added: 'soldes d’ouverture ajoutés',
+  errors: 'erreurs', confirmed: 'confirmées', closing_entries: 'écritures de clôture créées (validées)', opening_added: 'soldes d’ouverture ajoutés', balances_saved: 'soldes enregistrés',
 };
 
 /** Turns a stored message code (or `code|label:n` list) into French text. */

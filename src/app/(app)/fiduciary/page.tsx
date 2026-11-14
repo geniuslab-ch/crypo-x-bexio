@@ -3,6 +3,7 @@ import { Flash } from '@/components/Flash';
 import { getI18n } from '@/i18n/server';
 import { requireCtx } from '@/server/auth/next';
 import { orgProfiles } from '@/server/services/organization';
+import { groupRequests, listPlatformRequests } from '@/server/services/platformRequests';
 import { LEGAL_FORMS } from '@/core/legalForms';
 
 export default async function FiduciaryPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
@@ -10,6 +11,7 @@ export default async function FiduciaryPage({ searchParams }: { searchParams: Pr
   const { session, ctx } = await requireCtx();
   const { t } = await getI18n();
   const profiles = await orgProfiles(ctx.db, session.orgs.map((o) => o.id));
+  const requests = groupRequests(await listPlatformRequests(ctx, session.orgs.map((o) => o.id)));
   return (
     <div className="stack">
       <div className="page-head"><div><h1>{t('fid.title')}</h1><p className="subtitle">{t('fid.intro')}</p></div></div>
@@ -33,6 +35,14 @@ export default async function FiduciaryPage({ searchParams }: { searchParams: Pr
           <label>{t('auth.canton')}<input name="canton" maxLength={2} /></label>
           <button className="btn btn-primary" type="submit">{t('fid.addClient')}</button>
         </form>
+      </div>
+      <div className="card">
+        <h2>{t('req.list')}</h2>
+        {requests.length === 0 ? <p className="muted">{t('common.none')}</p> : (
+          <table className="table"><thead><tr><th>{t('req.platform')}</th><th className="num">Demandes</th><th className="num">En attente</th></tr></thead>
+            <tbody>{requests.map((r) => <tr key={r.platform}><td><b>{r.platform}</b></td><td className="num">{r.count}</td><td className="num">{r.open}</td></tr>)}</tbody></table>
+        )}
+        <p className="small muted">Demandes envoyées depuis « Wallets & exchanges » par vos dossiers clients. L’équipe Crypto2Books les reçoit et ajoute les plateformes les plus demandées en premier.</p>
       </div>
     </div>
   );
