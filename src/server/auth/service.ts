@@ -129,12 +129,18 @@ export interface ResetRequest { token: string; email: string; name: string | nul
  * Creates a one-time reset link for this e-mail. Returns null when no account uses it, so the caller
  * shows the same answer either way and never reveals whether an address is registered.
  */
-export async function requestPasswordReset(db: DB, email: string): Promise<ResetRequest | null> {
+/** Counts a reset request for this address; throws too_many_attempts past 3 in 15 minutes. Same for known and unknown addresses. */
+export function throttleResetRequest(email: string): void {
   const key = email.trim().toLowerCase();
   if (!key || key.length > 254) throw new AppError('invalid', 'invalid_input');
   const r = resetRequests.get(key);
-  if (r && r.until > Date.now() && r.count >= 3) throw new AppError('forbidden', 'too_many_attempts');
-  resetRequests.set(key, { count: r && r.until > Date.now() ? r.count + 1 : 1, until: r && r.until > Date.now() ? r.until : Date.now() + 15 * 60_000 });
+  const live = r && r.until > Date.now();
+  if (live && r.count >= 3) throw new AppError('forbidden', 'too_many_attempts');
+  resetRequests.set(key, { count: live ? r.count + 1 : 1, until: live ? r.until : Date.now() + 15 * 60_000 });
+}
+
+export async function requestPasswordReset(db: DB, email: string): Promise<ResetRequest | null> {
+  const key = email.trim().toLowerCase();
   const [u] = await db.select().from(users).where(sql`lower(${users.email}) = ${key}`);
   if (!u) return null;
   const token = randomToken();
@@ -154,6 +160,8 @@ export async function isResetTokenValid(db: DB, token: string): Promise<boolean>
 /** Sets the new password, burns every open reset link of the user and logs out all their sessions. */
 export async function resetPassword(db: DB, token: string, password: string): Promise<{ userId: string; email: string }> {
   const pw = passwordSchema.parse(password);
+  // Reject unknown or spent links before the costly Argon2 hash, so made-up tokens cost the server nothing.
+  if (!(await isResetTokenValid(db, token))) throw new AppError('forbidden', 'reset_link_invalid');
   const passwordHash = await hash(pw);
   return db.transaction(async (tx) => {
     const now = new Date();

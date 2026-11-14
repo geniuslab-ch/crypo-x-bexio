@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { getSession, isResetTokenValid, login, registerUser, requestPasswordReset, resetPassword } from '@/server/auth/service';
+import { getSession, isResetTokenValid, login, registerUser, requestPasswordReset, resetPassword, throttleResetRequest } from '@/server/auth/service';
 import { closeDb, type DB } from '@/server/db';
 import { resetDatabase } from './helpers';
 
@@ -35,8 +35,10 @@ describe('password reset', () => {
     await expect(resetPassword(db, 'made-up-token', 'another password 7')).rejects.toThrow('reset_link_invalid');
   });
 
-  it('limits reset e-mails per address', async () => {
-    await requestPasswordReset(db, 'reset@example.test');
-    await expect(requestPasswordReset(db, 'reset@example.test')).rejects.toThrow('too_many_attempts');
+  it('limits reset e-mails per address, known or not', () => {
+    for (const email of ['reset@example.test', 'nobody@example.test']) {
+      for (let i = 0; i < 3; i++) throttleResetRequest(email);
+      expect(() => throttleResetRequest(email)).toThrow('too_many_attempts');
+    }
   });
 });
