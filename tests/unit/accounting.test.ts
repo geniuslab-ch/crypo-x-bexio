@@ -56,8 +56,10 @@ describe('cost basis', () => {
   });
 
   it('refuses classifications that Phase 1 cannot book', () => {
-    const r = runAccounting([tx('defi', [mv('in', 'ETH', '1', '1')], 5)], FIFO);
+    const r = runAccounting([tx('nft_purchase', [mv('in', 'ETH', '1', '1')], 5)], FIFO);
     expect(r.issues[0]).toMatchObject({ code: 'not_bookable' });
+    // A DeFi operation must be an exchange.
+    expect(runAccounting([tx('defi', [mv('in', 'ETH', '1', '1')], 5)], FIFO).issues[0]).toMatchObject({ code: 'not_bookable' });
   });
 });
 

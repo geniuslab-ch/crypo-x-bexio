@@ -53,6 +53,7 @@ export async function buildAuditFile(ctx: Ctx, year: number): Promise<Uint8Array
       ? (closing.valuationMethod === 'market' ? 'Valeur de marché (CO art. 960b)' : 'Principe de la valeur la plus basse (CO art. 960 al. 2)')
       : 'Exercice non clôturé'],
     ['Base de la valeur unitaire', closed ? (closing.rateBasis === 'tax_value' ? 'Valeur fiscale officielle (Kursliste AFC)' : 'Cours de marché documenté au 31.12') : '-'],
+    ['DeFi (pools, prêts, staking liquide)', 'Échange à la valeur de marché : actifs remis cédés à la valeur de ce qui est reçu; jeton reçu (LP, aToken, stETH) acquis à cette valeur. Opérations confirmées une à une.'],
     ['Conversion', 'Tous les montants en CHF au cours du jour de la transaction, source du cours indiquée par ligne'],
   ]);
 

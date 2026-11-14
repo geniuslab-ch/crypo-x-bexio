@@ -1,0 +1,9 @@
+date,type,in_asset,in_quantity,out_asset,out_quantity,fee_asset,fee_quantity,external_id,tx_hash,chf_value,note
+2025-04-01T09:00:00Z,buy,ETH,2,CHF,3000,,,test-defi-001,,,TEST fictif - achat ETH
+2025-04-01T09:05:00Z,buy,USDC,3000,CHF,2700,,,test-defi-002,,,TEST fictif - achat USDC
+2025-05-01T10:00:00Z,liquidity_pool,UNI-V2-ETH-USDC,0.05,ETH,1,ETH,0.002,test-defi-003,,,TEST fictif - apport de liquidité (jambe ETH)
+2025-05-01T10:00:00Z,liquidity_pool,,,USDC,1800,,,test-defi-003,,,TEST fictif - apport de liquidité (jambe USDC)
+2025-06-01T08:00:00Z,defi,AETHUSDC,1000,USDC,1000,,,test-defi-004,,,TEST fictif - dépôt Aave
+2025-10-01T08:00:00Z,defi,USDC,1030,AETHUSDC,1000,,,test-defi-005,,,TEST fictif - retrait Aave avec 30 USDC de rendement
+2025-11-01T10:00:00Z,liquidity_pool,ETH,0.9,UNI-V2-ETH-USDC,0.05,,,test-defi-006,,,TEST fictif - retrait de liquidité (jambe ETH)
+2025-11-01T10:00:00Z,liquidity_pool,USDC,2000,,,,,test-defi-006,,,TEST fictif - retrait de liquidité (jambe USDC)

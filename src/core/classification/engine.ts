@@ -12,7 +12,7 @@ export interface ClassifiableTx {
   rawType: string;
   movements: Movement[];
   txHash?: string | null;
-  hint?: { classification: Classification; confidence: number; reason: string } | null;
+  hint?: { classification: Classification; confidence: number; reason: string; decisive?: boolean } | null;
   /** Classification set by a person for this exact transaction. Always wins. */
   manual?: Classification | null;
 }
@@ -135,7 +135,7 @@ export function classifyTransactions(
     const s = structuralClassification(tx);
     const hint = tx.hint;
     // A source hint is used when it is more confident than structure, or when structure is ambiguous.
-    const useHint = hint && (hint.confidence >= s.conf || s.c === 'deposit' || s.c === 'withdrawal' || s.c === 'unknown');
+    const useHint = hint && (hint.decisive || hint.confidence >= s.conf || s.c === 'deposit' || s.c === 'withdrawal' || s.c === 'unknown');
     const c = useHint ? hint.classification : s.c;
     const conf = useHint ? hint.confidence : s.conf;
     const hasNft = tx.movements.some((m) => m.asset.startsWith('NFT.'));

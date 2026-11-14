@@ -20,6 +20,10 @@ import type { Importer } from './types';
  *   tx_hash         blockchain transaction hash                                               optional
  *   chf_value       CHF value stated by the source document for the principal crypto leg      optional
  *   note            free text                                                                 optional
+ *
+ * DeFi operations with more than one asset on a side (liquidity pool, lending): one row per leg, with the same
+ * external_id, date and type (liquidity_pool or defi). The rows form one transaction; chf_value, if given, is the
+ * CHF value of the whole operation.
  */
 export const GENERIC_HEADERS = [
   'date', 'type', 'in_asset', 'in_quantity', 'out_asset', 'out_quantity', 'fee_asset', 'fee_quantity',
@@ -100,6 +104,35 @@ export const genericImporter: Importer = {
         sourceChfValue: chfValue ? chfValue.toString() : null,
       });
     });
-    return { transactions, issues };
+    return { transactions: mergeDefiLegs(transactions, issues), issues };
   },
 };
+
+const MULTI_LEG = new Set(['liquidity_pool', 'defi']);
+
+/** Joins the rows of one DeFi operation (same external_id and type liquidity_pool/defi) into one transaction. */
+function mergeDefiLegs(txs: ParsedTransaction[], issues: ParseResult['issues']): ParsedTransaction[] {
+  const out: ParsedTransaction[] = [];
+  const groups = new Map<string, ParsedTransaction>();
+  for (const tx of txs) {
+    if (!tx.externalId || !MULTI_LEG.has(tx.rawType)) { out.push(tx); continue; }
+    const g = groups.get(tx.externalId);
+    if (!g) {
+      const copy = { ...tx, movements: [...tx.movements], raw: [...tx.raw], rowNumbers: [...tx.rowNumbers] };
+      groups.set(tx.externalId, copy);
+      out.push(copy);
+      continue;
+    }
+    if (g.rawType !== tx.rawType || g.occurredAt.getTime() !== tx.occurredAt.getTime()) {
+      issues.push({ rowNumber: tx.rowNumbers[0] ?? 0, message: `external_id "${tx.externalId}": the legs of one DeFi operation must have the same date and type` });
+      continue;
+    }
+    g.movements.push(...tx.movements);
+    g.raw.push(...tx.raw);
+    g.rowNumbers.push(...tx.rowNumbers);
+    g.note = [g.note, tx.note].filter(Boolean).join(' / ') || null;
+    g.sourceChfValue = g.sourceChfValue ?? tx.sourceChfValue;
+    g.txHash = g.txHash ?? tx.txHash;
+  }
+  return out;
+}

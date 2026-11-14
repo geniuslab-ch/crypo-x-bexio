@@ -34,6 +34,8 @@ export interface ValuableTx {
   sourceChfValue?: string | null;
 }
 
+const EXCHANGES = new Set<Classification>(['swap', 'defi', 'liquidity_pool']);
+
 interface Val { rate: Dec; value: Dec; source: string; ref: string }
 
 function fromQuote(q: RateQuote, qty: Dec): Val {
@@ -111,6 +113,19 @@ export function valueTransaction(tx: ValuableTx, lookup: RateLookup): ValuationR
         if (vals.has(m)) continue;
         const v = valueDirect(m);
         if (v) vals.set(m, v);
+      }
+      // Exchange of several assets (liquidity pool, lending...): what is received is worth what is given. A single
+      // leg without a market rate (LP token, receipt token) takes the value that balances the exchange.
+      const unvalued = [...cryptoIns, ...cryptoOuts].filter((m) => !vals.has(m));
+      if (EXCHANGES.has(tx.classification) && unvalued.length === 1 && cryptoIns.length > 0 && cryptoOuts.length > 0 && fiatLegs.length === 0) {
+        const leg = unvalued[0]!;
+        const sum = (ms: Movement[]) => ms.filter((m) => m !== leg).reduce((a, m) => a.plus(vals.get(m)!.value), new D(0));
+        const sameSide = leg.direction === 'in' ? cryptoIns : cryptoOuts;
+        const otherSide = leg.direction === 'in' ? cryptoOuts : cryptoIns;
+        const value = sum(otherSide).minus(sum(sameSide));
+        if (value.gt(0)) {
+          vals.set(leg, { rate: value.div(qty(leg)), value, source: 'exchange_implied', ref: `Valeur des actifs ${leg.direction === 'in' ? 'remis' : 'reçus'} dans le même échange` });
+        }
       }
     }
   }
