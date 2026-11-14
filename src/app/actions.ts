@@ -117,14 +117,22 @@ export async function forgotPasswordAction(form: FormData) {
   const origin = await publicOrigin();
   // Lookup and delivery run after the response: known and unknown addresses get the same answer in the same time.
   after(async () => {
+    const db = getDb();
+    let r: Awaited<ReturnType<typeof requestPasswordReset>> = null;
     try {
-      const r = await requestPasswordReset(getDb(), email);
+      r = await requestPasswordReset(db, email);
       if (!r) return;
       const t = translator(r.locale);
       const link = `${origin}/reset-password?token=${encodeURIComponent(r.token)}`;
-      await sendMail({ to: r.email, subject: t('pw.mailSubject'), text: fill(t('pw.mailBody'), { name: r.name ?? '', email: r.email, link }) });
+      const messageId = await sendMail({ to: r.email, subject: t('pw.mailSubject'), text: fill(t('pw.mailBody'), { name: r.name ?? '', email: r.email, link }) });
+      // Sent: a failure to record it must not be reported as a failed delivery.
+      await audit(db, { orgId: null, actorUserId: r.userId, action: 'user.password_reset_mail_sent', entity: 'user', entityId: r.userId, after: { messageId } })
+        .catch((e) => console.error('password reset e-mail sent, audit write failed', e));
     } catch (e) {
-      console.error('password reset e-mail failed', e);
+      // Nothing reaches the user here (same answer for every address), so keep the reason in the log and the audit trail.
+      const reason = e instanceof Error ? e.message.slice(0, 400) : String(e).slice(0, 400);
+      console.error('password reset e-mail failed:', reason);
+      if (r) await audit(db, { orgId: null, actorUserId: r.userId, action: 'user.password_reset_mail_failed', entity: 'user', entityId: r.userId, after: { reason } }).catch(() => {});
     }
   });
   back('/forgot-password', 'ok', 'reset_link_sent');

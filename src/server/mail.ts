@@ -19,13 +19,14 @@ export function parseSender(from: string): { name?: string; email: string } {
   return { email: from.trim() };
 }
 
-export async function sendMail(mail: Mail): Promise<void> {
+/** Sends the e-mail and returns the provider's message id (null when only logged in development). */
+export async function sendMail(mail: Mail): Promise<string | null> {
   const key = process.env.BREVO_API_KEY;
   const from = process.env.MAIL_FROM;
   if (!key || !from) {
     if (process.env.NODE_ENV === 'production') throw new Error('mail_not_configured');
     console.info(`[mail] (not sent, BREVO_API_KEY/MAIL_FROM not set) to=${mail.to} subject=${mail.subject}\n${mail.text}`);
-    return;
+    return null;
   }
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
@@ -33,5 +34,12 @@ export async function sendMail(mail: Mail): Promise<void> {
     body: JSON.stringify({ sender: parseSender(from), to: [{ email: mail.to }], subject: mail.subject, textContent: mail.text }),
     signal: AbortSignal.timeout(10_000),
   });
-  if (!res.ok) throw new Error(`mail_send_failed ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const body = await res.text();
+  // Brevo explains refusals in the body (unvalidated sender, unauthorised IP, account not activated…): keep it.
+  if (!res.ok) throw new Error(`mail_send_failed ${res.status}: ${body.slice(0, 300)}`);
+  try {
+    return (JSON.parse(body) as { messageId?: string }).messageId ?? null;
+  } catch {
+    return null;
+  }
 }
