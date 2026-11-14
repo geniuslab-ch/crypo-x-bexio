@@ -1,5 +1,6 @@
 import { isFiat } from '../assets';
 import { D, ZERO, type Dec } from '../decimal';
+import { DEFI_EXCHANGE_CLASSIFICATIONS } from '../defi';
 import { BOOKABLE_CLASSIFICATIONS, type Classification } from '../types';
 import type { ValuedMovement } from '../valuation/value';
 import { cryptoAssetKey, fiatClearingKey } from './accountKeys';
@@ -102,7 +103,7 @@ export interface PoolHolding {
   cost: Dec;
 }
 
-const FEE_CAPITALIZABLE = new Set<Classification>(['buy', 'swap', 'sell']);
+const FEE_CAPITALIZABLE = new Set<Classification>(['buy', 'swap', 'sell', 'defi', 'liquidity_pool']);
 const NETWORK_FEE_CONTEXT = new Set<Classification>(['deposit', 'withdrawal', 'internal_transfer', 'network_fee', 'donation_received', 'endowment_received', 'grant_paid']);
 
 const COUNTERPART: Partial<Record<Classification, { key: string; side: 'in' | 'out' }>> = {
@@ -173,6 +174,11 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
       }
       if (missing) issues.push({ txId: tx.id, code: 'missing_rate', message: 'Solde d’ouverture sans coût d’acquisition CHF' });
       results.push({ txId: tx.id, acquisitions, disposals: [], postings: [], realizedGain: ZERO });
+      continue;
+    }
+    const isExchange = DEFI_EXCHANGE_CLASSIFICATIONS.has(tx.classification);
+    if (isExchange && !(tx.movements.some((m) => m.direction === 'in') && tx.movements.some((m) => m.direction === 'out' && !isFiat(m.asset)))) {
+      issues.push({ txId: tx.id, code: 'not_bookable', message: 'Une opération DeFi est un échange : il faut au moins un actif remis et un actif reçu. Reclassez-la (récompense, dépôt, retrait...)' });
       continue;
     }
     const isTransfer = tx.classification === 'internal_transfer';
@@ -251,8 +257,19 @@ export function runAccounting(txsIn: AccountingTx[], policy: AccountingPolicy): 
     const disposeLegs: { m: ValuedMovement; kind: 'principal' | 'fee'; proceeds: Dec }[] = [];
     if (!isTransfer) {
       const cryptoOuts = tx.movements.filter((m) => m.direction === 'out' && !isFiat(m.asset));
+      // DeFi exchange: the assets given are disposed of at the value of what is received (each leg valued on its
+      // own may differ slightly), shared in proportion of their own values.
+      const sum = (ms: ValuedMovement[]) => ms.reduce((a, m) => a.plus(m.chfValue!), ZERO);
+      const outValue = sum(cryptoOuts);
+      const target = isExchange ? sum(tx.movements.filter((m) => m.direction === 'in')).minus(sum(tx.movements.filter((m) => m.direction === 'out' && isFiat(m.asset)))) : null;
+      let allocated = ZERO;
       cryptoOuts.forEach((m, idx) => {
         let proceeds = new D(m.chfValue!);
+        if (target) {
+          proceeds = idx === cryptoOuts.length - 1 ? target.minus(allocated)
+            : outValue.isZero() ? ZERO : target.times(m.chfValue!).div(outValue).toDecimalPlaces(10);
+          allocated = allocated.plus(proceeds);
+        }
         if (capitalize && tx.classification === 'sell' && idx === 0) proceeds = proceeds.minus(feeTotal);
         disposeLegs.push({ m, kind: 'principal', proceeds });
       });

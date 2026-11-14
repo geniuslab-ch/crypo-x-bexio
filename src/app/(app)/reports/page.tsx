@@ -9,7 +9,7 @@ import { normalizeNumeric } from '@/server/services/transactions';
 
 const REPORTS = [
   ['transactions', 'rep.transactions'], ['realized', 'rep.realized'], ['holdings', 'rep.holdings'], ['wealth', 'rep.wealth'],
-  ['closing', 'rep.closing'], ['journal', 'rep.journal'], ['income', 'rep.income'], ['donations', 'rep.donations'], ['fees', 'rep.fees'],
+  ['closing', 'rep.closing'], ['reconciliation', 'rep.reconciliation'], ['journal', 'rep.journal'], ['income', 'rep.income'], ['donations', 'rep.donations'], ['fees', 'rep.fees'],
 ] as const;
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ year?: string; ok?: string; error?: string }> }) {
@@ -27,6 +27,12 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           {Array.from({ length: 8 }, (_, i) => String(now - i)).map((y) => <option key={y} value={y}>{y}</option>)}<option value="all">{t('common.all')}</option>
         </select></label><button className="btn" type="submit">OK</button></form>
       </div>
+      {year !== 'all' && (
+        <div className="card row" style={{ justifyContent: 'space-between' }}>
+          <div><h3>{t('rep.auditFile')} {year}</h3><p className="small muted">{t('rep.auditFileHint')}</p></div>
+          <a className="btn btn-primary" href={`/api/audit-file?year=${year}`}>PDF</a>
+        </div>
+      )}
       <div className="grid grid-3">
         {REPORTS.map(([type, key]) => (
           <div key={type} className="card stack">

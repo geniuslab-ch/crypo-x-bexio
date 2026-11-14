@@ -7,7 +7,7 @@ import { getI18n } from '@/i18n/server';
 import { fill } from '@/i18n/ui';
 import { bexioConfig } from '@/integrations/bexio/oauth';
 import { requireCtx } from '@/server/auth/next';
-import { getConnection, listBexioAccounts, listMappings, listSyncAttempts } from '@/server/services/bexio';
+import { getConnection, listBexioAccounts, listBexioTaxes, listMappings, listSyncAttempts } from '@/server/services/bexio';
 import { listEntries } from '@/server/services/calculation';
 import { listSources } from '@/server/services/imports';
 import { getOrgProfile } from '@/server/services/organization';
@@ -16,9 +16,13 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const { ctx } = await requireCtx();
   const { t, date, locale } = await getI18n();
-  const [conn, accounts, mappings, attempts, entries, org, srcs] = await Promise.all([
+  const [conn, accounts, mappings, attempts, entries, org, srcs, taxes] = await Promise.all([
     getConnection(ctx), listBexioAccounts(ctx), listMappings(ctx), listSyncAttempts(ctx), listEntries(ctx, ['validated', 'sync_failed', 'synced']), getOrgProfile(ctx), listSources(ctx),
+    listBexioTaxes(ctx),
   ]);
+  const vatOf = new Map(mappings.map((m) => [m.key, m.bexioTaxId]));
+  // VAT is booked on income and expense accounts only, never on crypto, exchange or transfer accounts.
+  const vatKey = (k: string) => !/^(crypto_asset|fiat_clearing):|^bank_clearing$|^external_|^foundation_capital$/.test(k);
   const configured = !!bexioConfig();
   const mapped = new Map(mappings.map((m) => [m.key, m.bexioAccountId]));
   // Asset-specific keys that already exist in entries can be mapped individually.
@@ -57,15 +61,20 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
         <p className="small muted">{t('bx.mappingIntro')}</p>
         {accounts.length === 0 ? <p className="muted">{t('bx.noAccounts')}</p> : <>
           <div className="table-wrap"><table className="table">
-            <thead><tr><th>{t('bx.col.category')}</th><th>{t('bx.col.example')}</th><th>{t('bx.col.account')}</th></tr></thead>
+            <thead><tr><th>{t('bx.col.category')}</th><th>{t('bx.col.example')}</th><th>{t('bx.col.account')}</th>{taxes.length > 0 && <th>{t('bx.col.vat')}</th>}</tr></thead>
             <tbody>{keys.map((k) => (
               <tr key={k}><td><b>{label(k)}</b><div className="mono small muted">{k}</div></td><td className="small muted">{ACCOUNT_KEY_LABELS[k]?.example[locale] ?? (k.endsWith(':*') ? '' : t('bx.genericFallback'))}</td>
                 <td><select name={`map:${k}`} defaultValue={mapped.get(k)?.toString() ?? ''} style={{ minWidth: 260 }}>
                   <option value="">—</option>
                   {accountOptions(k)}
-                </select></td></tr>
+                </select></td>
+                {taxes.length > 0 && <td>{vatKey(k) && <select name={`vat:${k}`} defaultValue={vatOf.get(k)?.toString() ?? ''} style={{ minWidth: 200 }}>
+                  <option value="">{t('bx.noVat')}</option>
+                  {taxes.filter((x) => x.isActive || vatOf.get(k) === x.bexioId).map((x) => <option key={x.bexioId} value={x.bexioId}>{x.code} · {x.name} · {Number(x.value)} %{x.type === 'pre_tax' ? ` ${t('bx.preTax')}` : ''}</option>)}
+                </select>}</td>}</tr>
             ))}</tbody>
           </table></div>
+          {taxes.length > 0 && <p className="small muted">{fill(t('bx.vatHelp'), { n: taxes.length })}</p>}
           {srcs.length > 0 && <>
             <h3 style={{ marginBottom: 0 }}>{t('bx.walletAccounts')}</h3>
             <p className="small muted">{t('bx.walletIntro')} {locked ? t('bx.walletLocked') : t('bx.walletDecide')}</p>

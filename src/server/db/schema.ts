@@ -193,6 +193,42 @@ export const taxValues = pgTable('tax_values', {
   createdAt: createdAt(),
 }, (t) => [uniqueIndex('tax_values_uq').on(t.orgId, t.asset, t.taxYear)]);
 
+/**
+ * Balance stated by the platform or the wallet itself at a date (statement, export, screenshot noted by the user),
+ * compared with the balance Crypto2Books computes from the imported transactions (reconciliation).
+ */
+export const reportedBalances = pgTable('reported_balances', {
+  id: id(),
+  orgId: orgId(),
+  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+  asset: text('asset').notNull(),
+  asOf: text('as_of').notNull(), // YYYY-MM-DD, end of day Europe/Zurich
+  quantity: qty('quantity').notNull(),
+  /** Where the figure comes from (e.g. "Relevé Kraken 31.12.2025"). */
+  evidence: text('evidence'),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex('reported_balances_uq').on(t.orgId, t.sourceId, t.asset, t.asOf)]);
+
+/** A platform, wallet or blockchain a user would like to connect. Reviewed by the Crypto2Books team. */
+export const platformRequests = pgTable('platform_requests', {
+  id: id(),
+  orgId: orgId(),
+  userId: uuid('user_id').notNull(),
+  platform: text('platform').notNull(),
+  /** exchange | wallet | blockchain */
+  kind: text('kind').notNull(),
+  /** csv | api | either */
+  wanted: text('wanted').notNull().default('either'),
+  note: text('note'),
+  /** Optional example export (CSV text) to build the importer from real columns. */
+  sampleName: text('sample_name'),
+  sampleContent: text('sample_content'),
+  /** open | planned | done | declined */
+  status: text('status').notNull().default('open'),
+  createdAt: createdAt(),
+}, (t) => [index('platform_requests_org_idx').on(t.orgId, t.createdAt)]);
+
 // ---------- Calculation & journal ----------
 
 export const calculationRuns = pgTable('calculation_runs', {
@@ -306,6 +342,8 @@ export const accountMappings = pgTable('account_mappings', {
   bexioAccountId: integer('bexio_account_id').notNull(),
   bexioAccountNo: text('bexio_account_no').notNull(),
   bexioAccountName: text('bexio_account_name').notNull(),
+  /** Optional bexio VAT code set on every line booked to this account. */
+  bexioTaxId: integer('bexio_tax_id'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('mappings_uq').on(t.orgId, t.key)]);
 
@@ -334,6 +372,19 @@ export const bexioAccounts = pgTable('bexio_accounts', {
   isLocked: boolean('is_locked').notNull(),
   fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('bexio_accounts_uq').on(t.orgId, t.bexioId)]);
+
+/** VAT codes defined in the company's bexio (name and rate chosen by the company or its fiduciary). */
+export const bexioTaxes = pgTable('bexio_taxes', {
+  id: id(),
+  orgId: orgId(),
+  bexioId: integer('bexio_id').notNull(),
+  code: text('code').notNull(),
+  name: text('name').notNull(),
+  type: text('type').notNull(),
+  value: numeric('value', { precision: 7, scale: 4 }).notNull(),
+  isActive: boolean('is_active').notNull(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('bexio_taxes_uq').on(t.orgId, t.bexioId)]);
 
 export const bexioBusinessYears = pgTable('bexio_business_years', {
   id: id(),

@@ -294,12 +294,13 @@ export async function addOpeningBalances(ctx: Ctx, year: number, rows: OpeningBa
 }
 
 /** CSV with columns source (wallet or exchange name, as in Crypto2Books), asset, quantity, cost_chf. */
-export function parseOpeningCsv(csv: string, sourcesByLabel: Map<string, string>): { rows: OpeningBalanceInput[]; errors: string[] } {
+export function parseOpeningCsv(csv: string, sourcesByLabel: Map<string, string | null>): { rows: OpeningBalanceInput[]; errors: string[] } {
   const parsed = Papa.parse<Record<string, string>>(csv.replace(/^﻿/, ''), { header: true, skipEmptyLines: true, transformHeader: (h) => h.trim().toLowerCase() });
   const rows: OpeningBalanceInput[] = [];
   const errors: string[] = [];
   parsed.data.forEach((r, i) => {
     const sourceId = sourcesByLabel.get((r.source ?? '').trim().toLowerCase());
+    if (sourceId === null) { errors.push(`Ligne ${i + 2} : plusieurs sources portent ce nom ; renommez-les pour les distinguer`); return; }
     if (!sourceId) { errors.push(`Ligne ${i + 2} : colonne « source » ne correspond à aucun wallet ou exchange`); return; }
     rows.push({ sourceId, asset: r.asset ?? '', quantity: r.quantity ?? '', costChf: r.cost_chf ?? '' });
   });

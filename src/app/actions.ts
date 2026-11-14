@@ -14,7 +14,7 @@ import { BexioHttpError } from '@/integrations/bexio/client';
 import { AppError } from '@/server/context';
 import { getDb } from '@/server/db';
 import { accountingPolicies, memberships, organizations, users } from '@/server/db/schema';
-import { disconnect, refreshBexioData, setMapping, syncEntries } from '@/server/services/bexio';
+import { disconnect, refreshBexioData, setMapping, setVatCode, syncEntries } from '@/server/services/bexio';
 import { markPolicyReviewed, runCalculation, setEntriesValidated, updatePolicy } from '@/server/services/calculation';
 import { reclassify, setManualClassification } from '@/server/services/classification';
 import { createSource, importFile, listSources } from '@/server/services/imports';
@@ -22,6 +22,8 @@ import { legalFormColumns, updateOrgProfile } from '@/server/services/organizati
 import { removeConnection, saveConnection, syncSource } from '@/server/services/sync';
 import { importRates, importTaxValues, revalue } from '@/server/services/valuation';
 import { isRateBasis, isValuationMethod } from '@/core/accounting/closing';
+import { deleteReportedBalance, importReportedBalances, saveReportedBalance, uniqueLabels } from '@/server/services/reconciliation';
+import { createPlatformRequest } from '@/server/services/platformRequests';
 import { addOpeningBalances, closeYear, deleteOpeningBalance, parseOpeningCsv, reopenYear } from '@/server/services/closing';
 
 /** Error codes raised when the server cannot reach or log in to PostgreSQL (configuration problem, not user input). */
@@ -364,6 +366,12 @@ export async function saveMappingsAction(form: FormData) {
       const val = String(v);
       await setMapping(ctx, key, val === '' ? null : Number(val));
     }
+    // VAT codes after the accounts, since a code needs a mapped account.
+    for (const [k, v] of form.entries()) {
+      if (!k.startsWith('vat:')) continue;
+      const val = String(v);
+      await setVatCode(ctx, k.slice(4), val === '' ? null : Number(val));
+    }
   } catch (e) {
     back('/bexio', 'error', msg(e));
   }
@@ -432,7 +440,7 @@ export async function addOpeningBalancesAction(form: FormData) {
     const file = form.get('file');
     if (file instanceof File && file.size > 0) {
       if (file.size > 2 * 1024 * 1024) throw new AppError('invalid', 'file_too_large');
-      const byLabel = new Map((await listSources(ctx)).map((s) => [s.label.trim().toLowerCase(), s.id]));
+      const byLabel = uniqueLabels(await listSources(ctx));
       const parsed = parseOpeningCsv(await file.text(), byLabel);
       rows.push(...parsed.rows);
       errors.push(...parsed.errors);
@@ -459,4 +467,65 @@ export async function deleteOpeningBalanceAction(form: FormData) {
   }
   revalidatePath('/', 'layout');
   back('/closing', 'ok', 'opening_deleted');
+}
+
+// ---------- Reconciliation ----------
+
+export async function saveReportedBalancesAction(form: FormData) {
+  const { ctx } = await requireCtx();
+  const date = String(form.get('date') ?? '');
+  const to = `/reconciliation${/^\d{4}-\d{2}-\d{2}$/.test(date) ? `?date=${date}` : ''}`;
+  let text = '';
+  try {
+    const file = form.get('file');
+    let saved = 0;
+    const errors: string[] = [];
+    if (file instanceof File && file.size > 0) {
+      if (file.size > 2 * 1024 * 1024) throw new AppError('invalid', 'file_too_large');
+      const r = await importReportedBalances(ctx, await file.text());
+      saved += r.saved;
+      errors.push(...r.errors);
+    }
+    const asset = String(form.get('asset') ?? '').trim();
+    if (asset) {
+      await saveReportedBalance(ctx, { sourceId: String(form.get('sourceId') ?? ''), asset, date, quantity: String(form.get('quantity') ?? ''), evidence: String(form.get('evidence') ?? '') });
+      saved++;
+    }
+    if (saved === 0 && errors.length === 0) throw new AppError('invalid', 'invalid_input');
+    text = [`balances_saved:${saved}`, `errors:${errors.length}`, ...errors.slice(0, 3)].join('|');
+  } catch (e) {
+    back(to, 'error', msg(e));
+  }
+  revalidatePath('/', 'layout');
+  back(to, 'ok', text);
+}
+
+export async function deleteReportedBalanceAction(form: FormData) {
+  const { ctx } = await requireCtx();
+  const date = String(form.get('date') ?? '');
+  const to = `/reconciliation${/^\d{4}-\d{2}-\d{2}$/.test(date) ? `?date=${date}` : ''}`;
+  try {
+    await deleteReportedBalance(ctx, String(form.get('id') ?? ''));
+  } catch (e) {
+    back(to, 'error', msg(e));
+  }
+  revalidatePath('/', 'layout');
+  back(to, 'ok', 'saved');
+}
+
+// ---------- Platform requests ----------
+
+export async function requestPlatformAction(form: FormData) {
+  const { ctx } = await requireCtx();
+  try {
+    const file = form.get('file');
+    const sample = file instanceof File && file.size > 0 ? { name: file.name, content: await file.text() } : null;
+    await createPlatformRequest(ctx, {
+      platform: String(form.get('platform') ?? ''), kind: String(form.get('kind') ?? 'exchange') as 'exchange',
+      wanted: String(form.get('wanted') ?? 'either') as 'either', note: String(form.get('note') ?? ''),
+    }, sample);
+  } catch (e) {
+    back('/sources', 'error', msg(e));
+  }
+  back('/sources', 'ok', 'platform_requested');
 }

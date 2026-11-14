@@ -119,6 +119,17 @@ export const UI_FR = {
   'clo.acqCost': 'Coût d’acquisition CHF',
   'clo.csvHint': 'Ou un fichier CSV (colonnes',
   'clo.csvHint2': '« source » = nom du wallet ou de l’exchange)',
+
+  'bx.col.vat': 'Code TVA (optionnel)',
+  'bx.noVat': '— sans TVA',
+  'bx.preTax': '(impôt préalable)',
+  'bx.vatHelp': 'Codes TVA : ceux de votre bexio, avec les noms et taux que vous leur avez donnés ({n} chargés). Laissez « — sans TVA » pour les opérations hors champ ou exclues (achat, vente et échange de cryptos : art. 21 al. 2 ch. 19 LTVA). Choisissez un code pour un compte de produit ou de charge soumis, par exemple des services de minage ou de validation facturés, ou des frais avec impôt préalable. Le code s’applique à chaque ligne de ce compte envoyée à bexio.',
+
+  'rec.gapHint': 'Un écart signale presque toujours une transaction manquante (import incomplet, frais non exportés, staking non listé) ou un transfert interne mal apparié. Corrigez la source, puis relancez le calcul.',
+  'rec.calcNote': 'Solde calculé = somme des entrées, sorties et frais importés jusqu’au {date} à minuit (heure suisse), après les soldes d’ouverture. Tolérance : 0.00000001.',
+  'rec.evidencePh': 'Relevé Kraken 31.12',
+  'src.sampleHint': 'Un export réel nous permet de lire les bonnes colonnes. Retirez-en les données personnelles si vous le souhaitez : seules les colonnes et quelques lignes comptent. Ne joignez jamais de clé API, de mot de passe ni de phrase de récupération.',
+  'fid.requestsNote': 'Demandes envoyées depuis « Wallets & exchanges » par vos dossiers clients. L’équipe Crypto2Books les reçoit et ajoute les plateformes les plus demandées en premier.',
 } as const;
 
 export type UiKey = keyof typeof UI_FR;
@@ -240,6 +251,17 @@ export const UI_DE: UiDict = {
   'clo.csvHint': 'Oder eine CSV-Datei (Spalten',
   'clo.csvHint2': '«source» = Name des Wallets oder der Börse)',
 
+  'bx.col.vat': 'MWST-Code (optional)',
+  'bx.noVat': '— ohne MWST',
+  'bx.preTax': '(Vorsteuer)',
+  'bx.vatHelp': 'MWST-Codes: jene aus Ihrem bexio, mit den Namen und Sätzen, die Sie ihnen gegeben haben ({n} geladen). Lassen Sie «— ohne MWST» für nicht steuerbare oder ausgenommene Umsätze (Kauf, Verkauf und Tausch von Kryptowährungen: Art. 21 Abs. 2 Ziff. 19 MWSTG). Wählen Sie einen Code für ein steuerbares Ertrags- oder Aufwandkonto, zum Beispiel fakturierte Mining- oder Validierungsdienste oder Gebühren mit Vorsteuer. Der Code gilt für jede Zeile dieses Kontos, die an bexio gesendet wird.',
+
+  'rec.gapHint': 'Eine Differenz deutet fast immer auf eine fehlende Transaktion (unvollständiger Import, nicht exportierte Gebühren, nicht aufgeführtes Staking) oder einen falsch zugeordneten internen Übertrag hin. Korrigieren Sie die Quelle und berechnen Sie neu.',
+  'rec.calcNote': 'Berechneter Saldo = Summe der importierten Eingänge, Ausgänge und Gebühren bis {date} um Mitternacht (Schweizer Zeit), nach den Eröffnungssalden. Toleranz: 0.00000001.',
+  'rec.evidencePh': 'Kraken-Auszug 31.12.',
+  'src.sampleHint': 'Ein echter Export hilft uns, die richtigen Spalten zu lesen. Entfernen Sie persönliche Daten, wenn Sie möchten: Es zählen nur die Spalten und einige Zeilen. Fügen Sie nie einen API-Schlüssel, ein Passwort oder eine Wiederherstellungsphrase bei.',
+  'fid.requestsNote': 'Anfragen Ihrer Kundendossiers aus «Wallets & Börsen». Das Crypto2Books-Team erhält sie und fügt die meistgewünschten Plattformen zuerst hinzu.',
+
 };
 
 export const UI_IT: UiDict = {
@@ -358,6 +380,17 @@ export const UI_IT: UiDict = {
   'clo.csvHint': 'Oppure un file CSV (colonne',
   'clo.csvHint2': '«source» = nome del wallet o dell’exchange)',
 
+  'bx.col.vat': 'Codice IVA (facoltativo)',
+  'bx.noVat': '— senza IVA',
+  'bx.preTax': '(imposta precedente)',
+  'bx.vatHelp': 'Codici IVA: quelli del vostro bexio, con i nomi e le aliquote che avete dato loro ({n} caricati). Lasciate «— senza IVA» per le operazioni non imponibili o escluse (acquisto, vendita e scambio di cripto: art. 21 cpv. 2 n. 19 LIVA). Scegliete un codice per un conto di ricavo o di costo imponibile, ad esempio servizi di mining o di validazione fatturati, o commissioni con imposta precedente. Il codice si applica a ogni riga di questo conto inviata a bexio.',
+
+  'rec.gapHint': 'Una differenza segnala quasi sempre una transazione mancante (importazione incompleta, commissioni non esportate, staking non elencato) o un trasferimento interno abbinato male. Correggete la fonte, poi rilanciate il calcolo.',
+  'rec.calcNote': 'Saldo calcolato = somma delle entrate, uscite e commissioni importate fino al {date} a mezzanotte (ora svizzera), dopo i saldi d’apertura. Tolleranza: 0.00000001.',
+  'rec.evidencePh': 'Estratto Kraken 31.12',
+  'src.sampleHint': 'Un’esportazione reale ci permette di leggere le colonne giuste. Toglietene i dati personali se lo desiderate: contano solo le colonne e alcune righe. Non allegate mai chiavi API, password né frasi di recupero.',
+  'fid.requestsNote': 'Richieste inviate da «Wallet & exchange» dai vostri incarti clienti. Il team Crypto2Books le riceve e aggiunge per prime le piattaforme più richieste.',
+
 };
 
 export const UI_EN: UiDict = {
@@ -475,6 +508,17 @@ export const UI_EN: UiDict = {
   'clo.acqCost': 'Acquisition cost CHF',
   'clo.csvHint': 'Or a CSV file (columns',
   'clo.csvHint2': '“source” = name of the wallet or exchange)',
+
+  'bx.col.vat': 'VAT code (optional)',
+  'bx.noVat': '— no VAT',
+  'bx.preTax': '(input tax)',
+  'bx.vatHelp': 'VAT codes: the ones in your bexio, with the names and rates you gave them ({n} loaded). Leave “— no VAT” for out-of-scope or exempt operations (buying, selling and swapping crypto: VAT Act art. 21 para. 2 no. 19). Pick a code for a taxable income or expense account, for example invoiced mining or validation services, or fees with input tax. The code applies to every line of that account sent to bexio.',
+
+  'rec.gapHint': 'A gap almost always means a missing transaction (incomplete import, fees not exported, staking not listed) or a badly matched internal transfer. Fix the source, then run the calculation again.',
+  'rec.calcNote': 'Calculated balance = sum of imported inflows, outflows and fees up to midnight on {date} (Swiss time), after opening balances. Tolerance: 0.00000001.',
+  'rec.evidencePh': 'Kraken statement 31.12',
+  'src.sampleHint': 'A real export lets us read the right columns. Remove personal data if you like: only the columns and a few rows matter. Never attach an API key, password or recovery phrase.',
+  'fid.requestsNote': 'Requests sent from “Wallets & exchanges” by your client files. The Crypto2Books team receives them and adds the most requested platforms first.',
 
 };
 

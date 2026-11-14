@@ -12,6 +12,10 @@ export interface MappedAccount {
   bexioAccountId: number;
   isActive: boolean;
   accountNo: string;
+  /** VAT code chosen for this account (optional). */
+  taxId?: number | null;
+  /** The VAT code is no longer active in bexio (deleted or deactivated). */
+  taxInactive?: boolean;
 }
 
 export interface BusinessYear {
@@ -24,7 +28,8 @@ export type PayloadResult = { ok: true; payload: ManualEntryRequest } | { ok: fa
 
 /**
  * Builds the bexio manual-entry request for one Crypto2Books entry.
- * All amounts are posted in CHF (company base currency, currency_factor 1). No VAT code is set.
+ * All amounts are posted in CHF (company base currency, currency_factor 1). A line gets a VAT code only when the
+ * account on one of its sides has one in the mapping (the company's own bexio codes); otherwise none is set.
  */
 export function buildManualEntry(
   entry: EntryForSync,
@@ -44,9 +49,14 @@ export function buildManualEntry(
     else if (!m.isActive) inactive.add(`${key} → ${m.accountNo}`);
     return m;
   };
+  const vatConflicts: string[] = [];
+  const vatInactive = new Set<string>();
   const entries = entry.lines.map((l) => {
     const d = resolve(l.debitKey);
     const c = resolve(l.creditKey);
+    for (const m of [d, c]) if (m?.taxId != null && m.taxInactive) vatInactive.add(m.accountNo);
+    const taxes = [...new Set([d?.taxId, c?.taxId].filter((x): x is number => typeof x === 'number'))];
+    if (taxes.length > 1) vatConflicts.push(`${d?.accountNo} / ${c?.accountNo}`);
     return {
       debit_account_id: d?.bexioAccountId ?? 0,
       credit_account_id: c?.bexioAccountId ?? 0,
@@ -54,8 +64,11 @@ export function buildManualEntry(
       description: l.description,
       currency_id: chfCurrencyId,
       currency_factor: 1,
+      ...(taxes.length === 1 ? { tax_id: taxes[0] } : {}),
     };
   });
+  if (vatConflicts.length) return { ok: false, reason: `Two different VAT codes on one line (accounts ${vatConflicts.join(', ')}): keep a VAT code on one side only` };
+  if (vatInactive.size) return { ok: false, reason: `VAT code no longer active in bexio for account(s) ${[...vatInactive].join(', ')}: choose another code or none on the bexio page` };
   if (missing.size) return { ok: false, reason: `Account mapping missing for: ${[...missing].join(', ')}` };
   if (inactive.size) return { ok: false, reason: `Mapped bexio account inactive: ${[...inactive].join(', ')}` };
   if (entries.some((e) => !(e.amount > 0))) return { ok: false, reason: 'Entry contains a non-positive amount' };

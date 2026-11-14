@@ -23,6 +23,7 @@ const LABELS_FR: Record<string, string> = {
   deposit: 'Dépôt crypto externe', withdrawal: 'Retrait crypto externe', internal_transfer: 'Transfert interne',
   trading_fee: 'Frais de trading', network_fee: 'Frais de réseau', staking_reward: 'Récompense de staking',
   mining_reward: 'Récompense de minage', airdrop: 'Airdrop', lending_interest: 'Intérêts de prêt',
+  defi: 'Opération DeFi (échange)', liquidity_pool: 'Pool de liquidité (échange)',
 };
 
 function describe(l: LoadedTx, cls: Classification): string {

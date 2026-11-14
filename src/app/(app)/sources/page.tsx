@@ -1,4 +1,4 @@
-import { connectSourceAction, createSourceAction, disconnectSourceAction, importFileAction, syncSourceAction } from '@/app/actions';
+import { connectSourceAction, createSourceAction, disconnectSourceAction, importFileAction, requestPlatformAction, syncSourceAction } from '@/app/actions';
 import { Flash, flashText } from '@/components/Flash';
 import { StatusBadge } from '@/components/ui';
 import { IMPORTERS, INTEGRATIONS } from '@/core/importers';
@@ -49,6 +49,21 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
           <p className="small muted">{t('src.addHint')}</p>
         </form>
       </div>
+
+      <details className="card">
+        <summary><b>{t('req.title')}</b> <span className="small muted">· une plateforme, une app ou une blockchain manque ? Dites-le-nous.</span></summary>
+        <form action={requestPlatformAction} className="stack" style={{ marginTop: 12 }}>
+          <div className="row" style={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <label>{t('req.platform')}<input name="platform" required minLength={2} maxLength={80} placeholder="SwissBorg" /></label>
+            <label>Type<select name="kind"><option value="exchange">{t('src.kind.exchange')}</option><option value="wallet">{t('src.kind.wallet')}</option><option value="blockchain">{t('req.kind.blockchain')}</option></select></label>
+            <label>{t('req.wanted')}<select name="wanted"><option value="either">{t('req.wanted.either')}</option><option value="csv">{t('req.wanted.csv')}</option><option value="api">{t('req.wanted.api')}</option></select></label>
+          </div>
+          <label>{t('req.note')}<textarea name="note" maxLength={1000} rows={2} placeholder="Ex. comptes Earn, staking, export « Account statement » au format CSV" /></label>
+          <label className="small">{t('req.sample')} <input type="file" name="file" accept=".csv,text/csv,.txt" /></label>
+          <p className="small muted">{t('src.sampleHint')}</p>
+          <div><button className="btn" type="submit">{t('req.send')}</button></div>
+        </form>
+      </details>
 
       {sources.length > 0 && (
         <div className="card stack">
