@@ -55,6 +55,8 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
       </select></td>
       <td><SaveButton intent="add" primary label={t('bx.addLine')} savingLabel={t('bx.adding')} savedLabel={addedText} done={!!added} /></td></tr>
   );
+  // Entries already in bexio keep the account they were sent with: a crypto account set afterwards only applies to later entries.
+  const syncedCount = entries.filter((e) => e.status === 'synced').length;
   const pending = entries.filter((e) => e.status !== 'synced').length;
   const label = (k: string) => ACCOUNT_KEY_LABELS[k]?.[locale] ?? (k.startsWith('crypto_asset:') ? fill(t('bx.specificCrypto'), { x: k.slice(13) }) : k.startsWith('fiat_clearing:') ? fill(t('bx.specificFiat'), { x: k.slice(14) }) : k);
   return (
@@ -98,6 +100,7 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
             </tbody>
           </table></div>
           <p className="small muted">{t('bx.perAssetHelp')}</p>
+          {syncedCount > 0 && <div className="alert alert-warn small">{fill(t('bx.perAssetSynced'), { n: syncedCount })}</div>}
           {taxes.length > 0 && <p className="small muted">{fill(t('bx.vatHelp'), { n: taxes.length })}</p>}
           {srcs.length > 0 && <>
             <h3 style={{ marginBottom: 0 }}>{t('bx.walletAccounts')}</h3>
