@@ -3,7 +3,7 @@ import { registerUser } from '@/server/auth/service';
 import type { Ctx } from '@/server/context';
 import { closeDb } from '@/server/db';
 import { createSource, importFile } from '@/server/services/imports';
-import { createPlatformRequest, groupRequests, listPlatformRequests } from '@/server/services/platformRequests';
+import { createPlatformRequest, groupRequests, listPlatformRequests, platformRequestNotice } from '@/server/services/platformRequests';
 import { importReportedBalances, isCalendarDate, reconcile, saveReportedBalance } from '@/server/services/reconciliation';
 import { requestTotals } from '@/server/services/platformRequests';
 import { resetDatabase } from './helpers';
@@ -69,5 +69,14 @@ describe('platform requests', () => {
       { platform: 'Bitpanda', count: 1, open: 1 },
     ]);
     await expect(createPlatformRequest(ctx, { platform: 'x', kind: 'exchange', wanted: 'csv' })).rejects.toThrow();
+  });
+
+  it('reads back what the team e-mail needs: requester, file, count so far and the example', async () => {
+    const id = await createPlatformRequest(ctx, { platform: ' SWISSBORG', kind: 'exchange', wanted: 'csv', note: 'Earn' }, { name: 'sb2.csv', content: 'x,y\n3,4' });
+    const n = await platformRequestNotice(ctx.db, id);
+    expect(n).toMatchObject({ platform: 'SWISSBORG', kind: 'exchange', wanted: 'csv', note: 'Earn', total: 3, sample: { name: 'sb2.csv', content: 'x,y\n3,4' } });
+    expect(n!.requesterEmail).toContain('@');
+    expect(n!.orgName.length).toBeGreaterThan(0);
+    expect(await platformRequestNotice(ctx.db, '00000000-0000-0000-0000-000000000000')).toBeNull();
   });
 });

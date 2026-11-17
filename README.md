@@ -43,7 +43,8 @@ npm run dev                     # http://localhost:3000
 | `BEXIO_CLIENT_ID`, `BEXIO_CLIENT_SECRET`, `APP_URL` | bexio developer portal — create an app with redirect URL `${APP_URL}/api/bexio/callback` | bexio connection (scopes `openid offline_access company_profile accounting`) |
 | `COINGECKO_API_KEY` (optional) | CoinGecko | automatic historical CHF prices |
 | `ETHERSCAN_API_KEY` (optional) | Etherscan | reading Ethereum public addresses (free key) |
-| `BREVO_API_KEY`, `MAIL_FROM` | Brevo (restricted key, "Emails transactionnels") | e-mails "Mot de passe oublié" (reset links); `MAIL_FROM` must be a sender or domain verified in Brevo |
+| `BREVO_API_KEY`, `MAIL_FROM` | Brevo (restricted key, "Emails transactionnels") | e-mails "Mot de passe oublié" (reset links) and the team notice for each platform request; `MAIL_FROM` must be a sender or domain verified in Brevo |
+| `PLATFORM_REQUEST_NOTIFY_TO` (optional) | — | recipient of the platform-request notices (default contact@crypto2books.ch) |
 
 Without bexio credentials the app runs fully; the bexio page shows what is missing. bexio has no sandbox: use a trial company for testing.
 

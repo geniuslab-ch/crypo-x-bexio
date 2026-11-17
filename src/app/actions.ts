@@ -27,7 +27,7 @@ import { removeConnection, saveConnection, syncSource } from '@/server/services/
 import { importRates, importTaxValues, revalue } from '@/server/services/valuation';
 import { isRateBasis, isValuationMethod } from '@/core/accounting/closing';
 import { deleteReportedBalance, importReportedBalances, saveReportedBalance, uniqueLabels } from '@/server/services/reconciliation';
-import { createPlatformRequest } from '@/server/services/platformRequests';
+import { createPlatformRequest, platformRequestMail, platformRequestNotice, platformRequestRecipient } from '@/server/services/platformRequests';
 import { addOpeningBalances, closeYear, deleteOpeningBalance, parseOpeningCsv, reopenYear } from '@/server/services/closing';
 
 /** Error codes raised when the server cannot reach or log in to PostgreSQL (configuration problem, not user input). */
@@ -582,10 +582,27 @@ export async function requestPlatformAction(form: FormData) {
   try {
     const file = form.get('file');
     const sample = file instanceof File && file.size > 0 ? { name: file.name, content: await file.text() } : null;
-    await createPlatformRequest(ctx, {
+    const id = await createPlatformRequest(ctx, {
       platform: String(form.get('platform') ?? ''), kind: String(form.get('kind') ?? 'exchange') as 'exchange',
       wanted: String(form.get('wanted') ?? 'either') as 'either', note: String(form.get('note') ?? ''),
     }, sample);
+    // The request is saved first; the team e-mail goes out after the response and a failed send never undoes it.
+    after(async () => {
+      const db = getDb();
+      try {
+        const notice = await platformRequestNotice(db, id);
+        if (!notice) return;
+        const messageId = await sendMail(platformRequestMail(notice, platformRequestRecipient()));
+        // Sent: a failure to record it must not be reported as a failed delivery.
+        await audit(db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'platform.request_mail_sent', entity: 'platform_request', entityId: id, after: { messageId } })
+          .catch((e) => console.error('platform request e-mail sent, audit write failed', e));
+      } catch (e) {
+        // The request is saved either way; keep Brevo's reason in the log and the audit trail.
+        const reason = e instanceof Error ? e.message.slice(0, 400) : String(e).slice(0, 400);
+        console.error('platform request e-mail failed:', reason);
+        await audit(db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'platform.request_mail_failed', entity: 'platform_request', entityId: id, after: { reason } }).catch(() => {});
+      }
+    });
   } catch (e) {
     back('/sources', 'error', msg(e));
   }
