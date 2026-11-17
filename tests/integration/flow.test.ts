@@ -6,9 +6,9 @@ import { getSession, login, registerUser } from '@/server/auth/service';
 import type { Ctx } from '@/server/context';
 import { encryptSecret } from '@/server/crypto';
 import { closeDb, type DB } from '@/server/db';
-import { auditLog, bexioConnections, journalEntries, transactions } from '@/server/db/schema';
+import { accountMappings, auditLog, bexioConnections, journalEntries, transactions } from '@/server/db/schema';
 import { BexioClient } from '@/integrations/bexio/client';
-import { completeConnect, connectionTokenProvider, refreshBexioData, setMapping, startConnect, syncEntries } from '@/server/services/bexio';
+import { addAssetMapping, completeConnect, connectionTokenProvider, refreshBexioData, setMapping, startConnect, syncEntries } from '@/server/services/bexio';
 import { listEntries, runCalculation, setEntriesValidated } from '@/server/services/calculation';
 import { setManualClassification } from '@/server/services/classification';
 import { createSource, importFile } from '@/server/services/imports';
@@ -178,6 +178,15 @@ describe('import → classify → value → calculate → validate → bexio', (
     const client = new BexioClient(connectionTokenProvider(db, ctx.orgId, bexio.fetchImpl), bexio.fetchImpl);
     const r = await syncEntries(ctx, [entry!.id], client);
     expect(r.results[0]).toMatchObject({ outcome: 'failed', message: expect.stringContaining('Validation error') });
+  });
+
+  it('maps a crypto typed by the user to its own account, before it is imported', async () => {
+    expect(await addAssetMapping(ctx, ' icp ', 2)).toBe('crypto_asset:ICP');
+    expect(await addAssetMapping(ctx, 'eur', 3)).toBe('fiat_clearing:EUR');
+    const rows = await db.select().from(accountMappings).where(eq(accountMappings.orgId, ctx.orgId));
+    expect(rows.find((m) => m.key === 'crypto_asset:ICP')?.bexioAccountNo).toBe('1092');
+    await expect(addAssetMapping(ctx, 'BTC/ETH', 2)).rejects.toThrow('invalid_asset');
+    await expect(addAssetMapping(ctx, 'ADA', null)).rejects.toThrow('choose_account_for_asset');
   });
 
   it('writes an audit trail', async () => {
