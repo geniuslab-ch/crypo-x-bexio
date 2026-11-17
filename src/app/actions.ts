@@ -18,7 +18,7 @@ import { BexioHttpError } from '@/integrations/bexio/client';
 import { AppError } from '@/server/context';
 import { getDb } from '@/server/db';
 import { accountingPolicies, memberships, organizations, users } from '@/server/db/schema';
-import { disconnect, refreshBexioData, setMapping, setVatCode, syncEntries } from '@/server/services/bexio';
+import { addAssetMapping, disconnect, refreshBexioData, setMapping, setVatCode, syncEntries } from '@/server/services/bexio';
 import { markPolicyReviewed, runCalculation, setEntriesValidated, updatePolicy } from '@/server/services/calculation';
 import { reclassify, setManualClassification } from '@/server/services/classification';
 import { createSource, importFile, listSources } from '@/server/services/imports';
@@ -423,6 +423,11 @@ export async function saveMappingsAction(form: FormData) {
       const val = String(v);
       await setMapping(ctx, key, val === '' ? null : Number(val));
     }
+    // A crypto typed on the "add" line gets its own account (the typed line wins over an existing line for the same asset).
+    const newAsset = String(form.get('newAsset') ?? '').trim();
+    const newAccount = String(form.get('newAssetAccount') ?? '');
+    if (newAsset) await addAssetMapping(ctx, newAsset, newAccount === '' ? null : Number(newAccount));
+    else if (newAccount) throw new AppError('invalid', 'invalid_asset');
     // VAT codes after the accounts, since a code needs a mapped account.
     for (const [k, v] of form.entries()) {
       if (!k.startsWith('vat:')) continue;

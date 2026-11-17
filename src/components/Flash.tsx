@@ -73,6 +73,7 @@ const MESSAGES: Record<string, string> = {
   platform_requested: 'Demande enregistrée. Nous vous prévenons dès que la plateforme est disponible.',
   invalid_date: 'Date invalide (AAAA-MM-JJ).',
   invalid_asset: 'Actif invalide.',
+  choose_account_for_asset: 'Choisissez le compte bexio de la crypto ajoutée.',
   invalid_quantity: 'Solde invalide (0 ou plus).',
 };
 

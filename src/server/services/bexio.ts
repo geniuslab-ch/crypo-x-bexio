@@ -190,6 +190,19 @@ export async function setMapping(ctx: Ctx, key: string, bexioAccountId: number |
     before: before ? { account: before.bexioAccountNo } : null, after: bexioAccountId === null ? null : { bexioAccountId } });
 }
 
+/**
+ * Maps one asset typed by the user (e.g. "btc") to its own bexio account, even before its transactions are imported.
+ * The asset then gets its own line in the mapping table; assets without a line keep using the general account.
+ */
+export async function addAssetMapping(ctx: Ctx, asset: string, bexioAccountId: number | null): Promise<string> {
+  const a = asset.trim().toUpperCase();
+  if (!/^[A-Z0-9]{1,20}$/.test(a)) throw new AppError('invalid', 'invalid_asset');
+  if (bexioAccountId === null) throw new AppError('invalid', 'choose_account_for_asset');
+  const key = isFiat(a) ? fiatClearingKey(a) : cryptoAssetKey(a);
+  await setMapping(ctx, key, bexioAccountId);
+  return key;
+}
+
 export interface SyncReport {
   synced: number;
   failed: number;
