@@ -1,5 +1,6 @@
 import { disconnectBexioAction, refreshBexioAction, saveMappingsAction, syncBexioAction } from '@/app/actions';
 import { Flash } from '@/components/Flash';
+import { SaveButton } from '@/components/SaveButton';
 import { StatusBadge } from '@/components/ui';
 import { ACCOUNT_KEYS, walletAccountKey } from '@/core/accounting/accountKeys';
 import { ACCOUNT_KEY_LABELS } from '@/i18n/dictionaries';
@@ -102,7 +103,7 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
               })}</tbody>
             </table></div>
           </>}
-          <button className="btn" type="submit">{t('common.save')}</button>
+          <SaveButton label={t('common.save')} savingLabel={t('bx.saving')} savedLabel={t('bx.saved')} done={sp.ok === 'saved'} />
         </>}
       </form>
 
