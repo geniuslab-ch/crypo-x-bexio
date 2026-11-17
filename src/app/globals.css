@@ -215,3 +215,11 @@ pre.evidence { background: #faf9f6; border: 1px solid var(--line); border-radius
 @keyframes save-bar-move { 0% { left: -40%; } 100% { left: 100%; } }
 @keyframes save-bar-fill { from { width: 30%; } to { width: 100%; } }
 @media (prefers-reduced-motion: reduce) { .save-bar-busy > span { animation: none; width: 100%; opacity: .6; } .save-bar-done > span { animation: none; } }
+
+/* A mapping line just added: highlighted for a moment and kept clear of the sticky header when scrolled to. */
+.row-added { scroll-margin-top: 96px; }
+.row-added > td { background: var(--gold-soft); animation: row-added-fade 3s ease-out 1s forwards; }
+@keyframes row-added-fade { to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .row-added > td { animation: none; } }
+.row-add > td { background: #fafaf7; border-top: 1px dashed var(--gold); border-bottom: 1px dashed var(--gold); }
+.row-add input::placeholder { text-transform: none; }

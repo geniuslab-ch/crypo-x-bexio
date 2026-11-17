@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { disconnectBexioAction, refreshBexioAction, saveMappingsAction, syncBexioAction } from '@/app/actions';
 import { Flash } from '@/components/Flash';
 import { SaveButton } from '@/components/SaveButton';
@@ -13,7 +14,10 @@ import { listEntries } from '@/server/services/calculation';
 import { listSources } from '@/server/services/imports';
 import { getOrgProfile } from '@/server/services/organization';
 
-export default async function BexioPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
+/** Anchor of a mapping line (crypto_asset:BTC → key-crypto_asset-BTC). */
+const rowId = (k: string) => `key-${k.replace(/[^A-Za-z0-9_]/g, '-')}`;
+
+export default async function BexioPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string; added?: string }> }) {
   const sp = await searchParams;
   const { ctx } = await requireCtx();
   const { t, date, locale } = await getI18n();
@@ -36,6 +40,23 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
   const locked = entries.length > 0;
   const accountOptions = (k: string) => accounts.filter((a) => a.isActive || mapped.get(k) === a.bexioId)
     .map((a) => <option key={a.bexioId} value={a.bexioId}>{a.accountNo} · {a.name}{a.isActive ? '' : ` ${t('bx.inactive')}`}</option>);
+  // A line added with « Ajouter la ligne » is highlighted and scrolled to after the save (?added=crypto_asset:BTC#…).
+  const added = sp.added && keys.includes(sp.added) ? sp.added : null;
+  const addedText = added ? fill(t('bx.lineAdded'), { x: added.slice(added.indexOf(':') + 1) }) : '';
+  // The « add a crypto » line sits right under the crypto lines, where the new line will appear.
+  const lastCryptoKey = keys.filter((k) => k.startsWith('crypto_asset:')).at(-1);
+  const addRow = (
+    <tr className="row-add"><td><b>{t('bx.addAsset')}</b><div><input name="newAsset" placeholder={t('bx.addAssetPlaceholder')} maxLength={20}
+      autoComplete="off" style={{ width: 120, textTransform: 'uppercase' }} aria-label={t('bx.addAsset')} /></div></td>
+      <td className="small muted">{t('bx.addAssetHelp')}</td>
+      <td><select name="newAssetAccount" defaultValue="" style={{ minWidth: 260 }} aria-label={t('bx.col.account')}>
+        <option value="">—</option>
+        {accountOptions('')}
+      </select></td>
+      <td><SaveButton intent="add" primary label={t('bx.addLine')} savingLabel={t('bx.adding')} savedLabel={addedText} done={!!added} /></td></tr>
+  );
+  // Entries already in bexio keep the account they were sent with: a crypto account set afterwards only applies to later entries.
+  const syncedCount = entries.filter((e) => e.status === 'synced').length;
   const pending = entries.filter((e) => e.status !== 'synced').length;
   const label = (k: string) => ACCOUNT_KEY_LABELS[k]?.[locale] ?? (k.startsWith('crypto_asset:') ? fill(t('bx.specificCrypto'), { x: k.slice(13) }) : k.startsWith('fiat_clearing:') ? fill(t('bx.specificFiat'), { x: k.slice(14) }) : k);
   return (
@@ -63,29 +84,23 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
         <p className="small muted">{t('bx.mappingIntro')}</p>
         {accounts.length === 0 ? <p className="muted">{t('bx.noAccounts')}</p> : <>
           <div className="table-wrap"><table className="table">
-            <thead><tr><th>{t('bx.col.category')}</th><th>{t('bx.col.example')}</th><th>{t('bx.col.account')}</th>{taxes.length > 0 && <th>{t('bx.col.vat')}</th>}</tr></thead>
-            <tbody>{keys.map((k) => (
-              <tr key={k}><td><b>{label(k)}</b><div className="mono small muted">{k}</div></td><td className="small muted">{ACCOUNT_KEY_LABELS[k]?.example[locale] ?? (k.endsWith(':*') ? '' : t('bx.genericFallback'))}</td>
+            <thead><tr><th>{t('bx.col.category')}</th><th>{t('bx.col.example')}</th><th>{t('bx.col.account')}</th><th>{taxes.length > 0 ? t('bx.col.vat') : ''}</th></tr></thead>
+            <tbody>{keys.map((k) => (<Fragment key={k}>
+              <tr id={rowId(k)} className={added && rowId(k) === rowId(added) ? 'row-added' : undefined}><td><b>{label(k)}</b><div className="mono small muted">{k}</div></td><td className="small muted">{ACCOUNT_KEY_LABELS[k]?.example[locale] ?? (k.endsWith(':*') ? '' : t('bx.genericFallback'))}</td>
                 <td><select name={`map:${k}`} defaultValue={mapped.get(k)?.toString() ?? ''} style={{ minWidth: 260 }}>
                   <option value="">—</option>
                   {accountOptions(k)}
                 </select></td>
-                {taxes.length > 0 && <td>{vatKey(k) && <select name={`vat:${k}`} defaultValue={vatOf.get(k)?.toString() ?? ''} style={{ minWidth: 200 }}>
+                <td>{taxes.length > 0 && vatKey(k) && <select name={`vat:${k}`} defaultValue={vatOf.get(k)?.toString() ?? ''} style={{ minWidth: 200 }}>
                   <option value="">{t('bx.noVat')}</option>
                   {taxes.filter((x) => x.isActive || vatOf.get(k) === x.bexioId).map((x) => <option key={x.bexioId} value={x.bexioId}>{x.code} · {x.name} · {Number(x.value)} %{x.type === 'pre_tax' ? ` ${t('bx.preTax')}` : ''}</option>)}
-                </select>}</td>}</tr>
+                </select>}</td></tr>
+              {k === lastCryptoKey && addRow}</Fragment>
             ))}
-              <tr><td><b>{t('bx.addAsset')}</b><div><input name="newAsset" placeholder={t('bx.addAssetPlaceholder')} maxLength={20} autoComplete="off"
-                style={{ width: 120, textTransform: 'uppercase' }} aria-label={t('bx.addAsset')} /></div></td>
-                <td className="small muted">{t('bx.addAssetHelp')}</td>
-                <td><select name="newAssetAccount" defaultValue="" style={{ minWidth: 260 }} aria-label={t('bx.col.account')}>
-                  <option value="">—</option>
-                  {accountOptions('')}
-                </select></td>
-                {taxes.length > 0 && <td />}</tr>
             </tbody>
           </table></div>
           <p className="small muted">{t('bx.perAssetHelp')}</p>
+          {syncedCount > 0 && <div className="alert alert-warn small">{fill(t('bx.perAssetSynced'), { n: syncedCount })}</div>}
           {taxes.length > 0 && <p className="small muted">{fill(t('bx.vatHelp'), { n: taxes.length })}</p>}
           {srcs.length > 0 && <>
             <h3 style={{ marginBottom: 0 }}>{t('bx.walletAccounts')}</h3>
@@ -103,7 +118,7 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
               })}</tbody>
             </table></div>
           </>}
-          <SaveButton label={t('common.save')} savingLabel={t('bx.saving')} savedLabel={t('bx.saved')} done={sp.ok === 'saved'} />
+          <SaveButton label={t('common.save')} savingLabel={t('bx.saving')} savedLabel={t('bx.saved')} done={sp.ok === 'saved' && !added} />
         </>}
       </form>
 

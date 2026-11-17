@@ -416,6 +416,7 @@ export async function refreshBexioAction() {
 
 export async function saveMappingsAction(form: FormData) {
   const { ctx } = await requireCtx();
+  let addedKey: string | null = null;
   try {
     for (const [k, v] of form.entries()) {
       if (!k.startsWith('map:')) continue;
@@ -426,8 +427,8 @@ export async function saveMappingsAction(form: FormData) {
     // A crypto typed on the "add" line gets its own account (the typed line wins over an existing line for the same asset).
     const newAsset = String(form.get('newAsset') ?? '').trim();
     const newAccount = String(form.get('newAssetAccount') ?? '');
-    if (newAsset) await addAssetMapping(ctx, newAsset, newAccount === '' ? null : Number(newAccount));
-    else if (newAccount) throw new AppError('invalid', 'invalid_asset');
+    if (newAsset) addedKey = await addAssetMapping(ctx, newAsset, newAccount === '' ? null : Number(newAccount));
+    else if (newAccount || form.get('intent') === 'add') throw new AppError('invalid', 'invalid_asset');
     // VAT codes after the accounts, since a code needs a mapped account.
     for (const [k, v] of form.entries()) {
       if (!k.startsWith('vat:')) continue;
@@ -437,6 +438,8 @@ export async function saveMappingsAction(form: FormData) {
   } catch (e) {
     back('/bexio', 'error', msg(e));
   }
+  // The new line is shown highlighted, scrolled into view, with « Ligne BTC ajoutée » under its button.
+  if (addedKey) redirect(`/bexio?ok=saved&added=${encodeURIComponent(addedKey)}#key-${addedKey.replace(/[^A-Za-z0-9_]/g, '-')}`);
   back('/bexio', 'ok', 'saved');
 }
 
