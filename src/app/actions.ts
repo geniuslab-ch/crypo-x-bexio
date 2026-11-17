@@ -18,7 +18,7 @@ import { BexioHttpError } from '@/integrations/bexio/client';
 import { AppError } from '@/server/context';
 import { getDb } from '@/server/db';
 import { accountingPolicies, memberships, organizations, users } from '@/server/db/schema';
-import { disconnect, refreshBexioData, setMapping, setVatCode, syncEntries } from '@/server/services/bexio';
+import { addAssetMapping, disconnect, refreshBexioData, setMapping, setVatCode, syncEntries } from '@/server/services/bexio';
 import { markPolicyReviewed, runCalculation, setEntriesValidated, updatePolicy } from '@/server/services/calculation';
 import { reclassify, setManualClassification } from '@/server/services/classification';
 import { createSource, importFile, listSources } from '@/server/services/imports';
@@ -117,14 +117,22 @@ export async function forgotPasswordAction(form: FormData) {
   const origin = await publicOrigin();
   // Lookup and delivery run after the response: known and unknown addresses get the same answer in the same time.
   after(async () => {
+    const db = getDb();
+    let r: Awaited<ReturnType<typeof requestPasswordReset>> = null;
     try {
-      const r = await requestPasswordReset(getDb(), email);
+      r = await requestPasswordReset(db, email);
       if (!r) return;
       const t = translator(r.locale);
       const link = `${origin}/reset-password?token=${encodeURIComponent(r.token)}`;
-      await sendMail({ to: r.email, subject: t('pw.mailSubject'), text: fill(t('pw.mailBody'), { name: r.name ?? '', email: r.email, link }) });
+      const messageId = await sendMail({ to: r.email, subject: t('pw.mailSubject'), text: fill(t('pw.mailBody'), { name: r.name ?? '', email: r.email, link }) });
+      // Sent: a failure to record it must not be reported as a failed delivery.
+      await audit(db, { orgId: null, actorUserId: r.userId, action: 'user.password_reset_mail_sent', entity: 'user', entityId: r.userId, after: { messageId } })
+        .catch((e) => console.error('password reset e-mail sent, audit write failed', e));
     } catch (e) {
-      console.error('password reset e-mail failed', e);
+      // Nothing reaches the user here (same answer for every address), so keep the reason in the log and the audit trail.
+      const reason = e instanceof Error ? e.message.slice(0, 400) : String(e).slice(0, 400);
+      console.error('password reset e-mail failed:', reason);
+      if (r) await audit(db, { orgId: null, actorUserId: r.userId, action: 'user.password_reset_mail_failed', entity: 'user', entityId: r.userId, after: { reason } }).catch(() => {});
     }
   });
   back('/forgot-password', 'ok', 'reset_link_sent');
@@ -415,6 +423,11 @@ export async function saveMappingsAction(form: FormData) {
       const val = String(v);
       await setMapping(ctx, key, val === '' ? null : Number(val));
     }
+    // A crypto typed on the "add" line gets its own account (the typed line wins over an existing line for the same asset).
+    const newAsset = String(form.get('newAsset') ?? '').trim();
+    const newAccount = String(form.get('newAssetAccount') ?? '');
+    if (newAsset) await addAssetMapping(ctx, newAsset, newAccount === '' ? null : Number(newAccount));
+    else if (newAccount) throw new AppError('invalid', 'invalid_asset');
     // VAT codes after the accounts, since a code needs a mapped account.
     for (const [k, v] of form.entries()) {
       if (!k.startsWith('vat:')) continue;
@@ -575,11 +588,19 @@ export async function requestPlatformAction(form: FormData) {
     }, sample);
     // The request is saved first; the team e-mail goes out after the response and a failed send never undoes it.
     after(async () => {
+      const db = getDb();
       try {
-        const notice = await platformRequestNotice(getDb(), id);
-        if (notice) await sendMail(platformRequestMail(notice, platformRequestRecipient()));
+        const notice = await platformRequestNotice(db, id);
+        if (!notice) return;
+        const messageId = await sendMail(platformRequestMail(notice, platformRequestRecipient()));
+        // Sent: a failure to record it must not be reported as a failed delivery.
+        await audit(db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'platform.request_mail_sent', entity: 'platform_request', entityId: id, after: { messageId } })
+          .catch((e) => console.error('platform request e-mail sent, audit write failed', e));
       } catch (e) {
-        console.error('platform request e-mail failed', e);
+        // The request is saved either way; keep Brevo's reason in the log and the audit trail.
+        const reason = e instanceof Error ? e.message.slice(0, 400) : String(e).slice(0, 400);
+        console.error('platform request e-mail failed:', reason);
+        await audit(db, { orgId: ctx.orgId, actorUserId: ctx.userId, action: 'platform.request_mail_failed', entity: 'platform_request', entityId: id, after: { reason } }).catch(() => {});
       }
     });
   } catch (e) {

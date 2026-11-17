@@ -17,7 +17,7 @@ describe('Brevo mail', () => {
     vi.stubEnv('MAIL_FROM', 'Crypto2Books <contact@crypto2books.ch>');
     const fetchMock = vi.fn(async () => new Response('{"messageId":"<1@brevo>"}', { status: 201 }));
     vi.stubGlobal('fetch', fetchMock);
-    await sendMail({ to: 'user@example.test', subject: 'Sujet', text: 'Corps' });
+    expect(await sendMail({ to: 'user@example.test', subject: 'Sujet', text: 'Corps' })).toBe('<1@brevo>');
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://api.brevo.com/v3/smtp/email');
     expect((init.headers as Record<string, string>)['api-key']).toBe('xkeysib-test');

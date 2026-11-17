@@ -123,7 +123,7 @@ const passwordSchema = z.string().min(10, 'password_too_short').max(200);
 /** At most 3 reset e-mails per address every 15 minutes (per process, like the login throttle). */
 const resetRequests = new Map<string, { count: number; until: number }>();
 
-export interface ResetRequest { token: string; email: string; name: string | null; locale: string }
+export interface ResetRequest { token: string; userId: string; email: string; name: string | null; locale: string }
 
 /**
  * Creates a one-time reset link for this e-mail. Returns null when no account uses it, so the caller
@@ -146,7 +146,7 @@ export async function requestPasswordReset(db: DB, email: string): Promise<Reset
   const token = randomToken();
   await db.insert(passwordResets).values({ userId: u.id, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + RESET_MINUTES * 60_000) });
   await audit(db, { orgId: null, actorUserId: u.id, action: 'user.password_reset_requested', entity: 'user', entityId: u.id });
-  return { token, email: u.email, name: u.name, locale: u.locale };
+  return { token, userId: u.id, email: u.email, name: u.name, locale: u.locale };
 }
 
 /** True when the link can still be used (shown before the new-password form). */

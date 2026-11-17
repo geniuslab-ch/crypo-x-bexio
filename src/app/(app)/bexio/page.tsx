@@ -1,5 +1,6 @@
 import { disconnectBexioAction, refreshBexioAction, saveMappingsAction, syncBexioAction } from '@/app/actions';
 import { Flash } from '@/components/Flash';
+import { SaveButton } from '@/components/SaveButton';
 import { StatusBadge } from '@/components/ui';
 import { ACCOUNT_KEYS, walletAccountKey } from '@/core/accounting/accountKeys';
 import { ACCOUNT_KEY_LABELS } from '@/i18n/dictionaries';
@@ -73,8 +74,18 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
                   <option value="">{t('bx.noVat')}</option>
                   {taxes.filter((x) => x.isActive || vatOf.get(k) === x.bexioId).map((x) => <option key={x.bexioId} value={x.bexioId}>{x.code} · {x.name} · {Number(x.value)} %{x.type === 'pre_tax' ? ` ${t('bx.preTax')}` : ''}</option>)}
                 </select>}</td>}</tr>
-            ))}</tbody>
+            ))}
+              <tr><td><b>{t('bx.addAsset')}</b><div><input name="newAsset" placeholder={t('bx.addAssetPlaceholder')} maxLength={20} autoComplete="off"
+                style={{ width: 120, textTransform: 'uppercase' }} aria-label={t('bx.addAsset')} /></div></td>
+                <td className="small muted">{t('bx.addAssetHelp')}</td>
+                <td><select name="newAssetAccount" defaultValue="" style={{ minWidth: 260 }} aria-label={t('bx.col.account')}>
+                  <option value="">—</option>
+                  {accountOptions('')}
+                </select></td>
+                {taxes.length > 0 && <td />}</tr>
+            </tbody>
           </table></div>
+          <p className="small muted">{t('bx.perAssetHelp')}</p>
           {taxes.length > 0 && <p className="small muted">{fill(t('bx.vatHelp'), { n: taxes.length })}</p>}
           {srcs.length > 0 && <>
             <h3 style={{ marginBottom: 0 }}>{t('bx.walletAccounts')}</h3>
@@ -92,7 +103,7 @@ export default async function BexioPage({ searchParams }: { searchParams: Promis
               })}</tbody>
             </table></div>
           </>}
-          <button className="btn" type="submit">{t('common.save')}</button>
+          <SaveButton label={t('common.save')} savingLabel={t('bx.saving')} savedLabel={t('bx.saved')} done={sp.ok === 'saved'} />
         </>}
       </form>
 
